@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Smart Campus 360 — Your Campus. Alive.</title>
+<style>
+  :root{
+    --bg:#04070d; --bg-2:#070d16;
+    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.06);
+    --fg:#eef4f6; --fg-dim:rgba(238,244,246,.55); --fg-faint:rgba(238,244,246,.32);
+    --accent:#4fe8c8; --amber:#f5b44a; --red:#ff4d5e;
+    --glass:rgba(9,16,24,.66);
+    --f:"Inter","SF Pro Display",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f);font-weight:300;
+       -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  canvas{display:block}
+  button,input{font-family:inherit}
+  ::selection{background:var(--accent);color:#04070d}
+
+  /* stage */
+  #stage{position:fixed;inset:0;z-index:0;transition:opacity .8s ease,filter .8s ease}
+  #stage.recede{opacity:.16;filter:saturate(.4)}
+  #vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 30%,rgba(2,4,8,.72) 78%,rgba(2,4,8,.96) 100%)}
+  #grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.04;
+    background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.4) 0 1px,transparent 1px 3px)}
+
+  /* floating tags */
+  #labels{position:fixed;inset:0;z-index:3;pointer-events:none}
+  .tag{position:absolute;transform:translate(-50%,-100%);padding:7px 10px 8px;min-width:104px;
+    background:linear-gradient(180deg,rgba(10,20,28,.85),rgba(6,12,18,.75));
+    border:1px solid rgba(79,232,200,.24);border-left:2px solid var(--accent);
+    backdrop-filter:blur(6px);opacity:0;transition:opacity .7s ease}
+  .tag.on{opacity:1}
+  .tag b{display:block;font-size:9.5px;letter-spacing:.16em;font-weight:500;color:var(--fg-dim)}
+  .tag i{display:block;font-style:normal;font-size:14px;color:var(--fg);margin-top:3px;font-variant-numeric:tabular-nums}
+  .tag.warn{border-color:rgba(245,180,74,.4);border-left-color:var(--amber)} .tag.warn i{color:var(--amber)}
+  .tag.crit{border-color:rgba(255,77,94,.45);border-left-color:var(--red)} .tag.crit i{color:var(--red)}
+  .tag:after{content:"";position:absolute;left:-1px;bottom:-14px;width:1px;height:14px;background:linear-gradient(var(--accent),transparent)}
+
+  #inspect{position:fixed;z-index:6;width:242px;pointer-events:none;opacity:0;transform:translateY(6px);
+    transition:opacity .22s ease,transform .22s ease;background:var(--glass);
+    border:1px solid rgba(79,232,200,.28);backdrop-filter:blur(14px);padding:14px 15px 15px}
+  #inspect.on{opacity:1;transform:translateY(0)}
+  #inspect h4{margin:0 0 12px;font-size:13px;letter-spacing:.14em;font-weight:500}
+  #inspect .row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;
+    border-bottom:1px solid var(--line-2);font-size:11px;color:var(--fg-faint);letter-spacing:.08em}
+  #inspect .row span{font-size:13px;color:var(--fg);letter-spacing:0;font-variant-numeric:tabular-nums}
+  #inspect .ai{margin-top:12px;font-size:11.5px;line-height:1.5;color:var(--accent);
+    border-left:1px solid var(--accent);padding-left:9px}
+  #inspect .ai em{display:block;font-style:normal;font-size:9px;letter-spacing:.2em;color:var(--fg-faint);margin-bottom:4px}
+
+  /* layout */
+  main{position:relative;z-index:2}
+  .chapter{min-height:100vh;display:flex;align-items:center;padding:110px 6vw;position:relative;pointer-events:none}
+  .chapter .wrap,#hero .lead,#hero .bar,#feed,footer{pointer-events:auto}
+  .wrap{width:100%;max-width:1180px;margin:0 auto}
+  .eyebrow{font-size:10px;letter-spacing:.42em;color:var(--accent);font-weight:400;margin:0}
+  .huge{font-size:clamp(52px,11vw,168px);line-height:.88;font-weight:200;letter-spacing:-.045em;margin:0}
+  .mid{font-size:clamp(36px,5.6vw,84px);line-height:1;font-weight:200;letter-spacing:-.04em;margin:0}
+  .sub{font-size:clamp(14px,1.4vw,18px);line-height:1.65;color:var(--fg-dim);max-width:40ch;font-weight:300}
+  .k{font-size:10px;letter-spacing:.28em;color:var(--fg-faint);margin:0}
+  .panel{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(16px);padding:26px 28px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:54px;align-items:center}
+
+  .btn{display:inline-flex;align-items:center;gap:12px;padding:14px 24px;background:transparent;color:var(--fg);
+    border:1px solid rgba(255,255,255,.22);font-size:11px;letter-spacing:.22em;cursor:pointer;
+    transition:.3s cubic-bezier(.2,.8,.2,1)}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .btn.solid{background:var(--accent);color:#03110d;border-color:var(--accent);font-weight:500}
+  .btn.solid:hover{background:#6ff6da;color:#03110d}
+  .btn .dot{width:5px;height:5px;background:currentColor;border-radius:50%}
+  .btn.sm{padding:10px 16px;font-size:10px;letter-spacing:.16em}
+
+  .reveal{opacity:0;transform:translateY(24px);
+    transition:opacity 1s cubic-bezier(.2,.8,.2,1),transform 1s cubic-bezier(.2,.8,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  /* hero */
+  #hero{height:100vh;min-height:640px;padding:0;overflow:hidden}
+  #ghost{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;pointer-events:none;z-index:-1}
+  #ghost span{font-size:clamp(110px,24vw,360px);line-height:.78;font-weight:200;letter-spacing:-.06em;
+    color:transparent;-webkit-text-stroke:1px rgba(255,255,255,.075)}
+  #hero .bar{position:absolute;left:6vw;right:6vw;top:36px;display:flex;justify-content:space-between}
+  #hero h1{margin:0;font-size:clamp(46px,8.2vw,124px);line-height:.9;font-weight:200;letter-spacing:-.05em}
+  #hero .lead{position:absolute;left:6vw;top:50%;transform:translateY(-50%);max-width:min(46vw,540px)}
+  .chain{display:flex;gap:13px;flex-wrap:wrap;font-size:9.5px;letter-spacing:.28em;color:var(--fg-faint);margin-top:24px}
+  .chain b{font-weight:400;transition:color .4s}
+  .chain b.hot{color:var(--accent)}
+  .actions{display:flex;gap:13px;flex-wrap:wrap;margin-top:32px}
+  #feed{position:absolute;right:6vw;top:50%;transform:translateY(-50%);width:266px;text-align:right}
+  #feed .line{opacity:0;transform:translateX(14px);transition:.5s cubic-bezier(.2,.8,.2,1);margin-bottom:13px}
+  #feed .line.in{opacity:1;transform:none}
+  #feed .src{font-size:9px;letter-spacing:.28em;color:var(--fg-faint)}
+  #feed .val{font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+  #feed .val.a{color:var(--accent)} #feed .val.w{color:var(--amber)}
+  #feed .rec{border-right:1px solid var(--accent);padding-right:12px;margin-top:18px}
+  .scrollcue{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);font-size:9px;letter-spacing:.32em;
+    color:var(--fg-faint);display:flex;flex-direction:column;align-items:center;gap:9px}
+  .scrollcue i{display:block;width:1px;height:36px;background:linear-gradient(var(--accent),transparent);animation:drop 2.4s infinite}
+  @keyframes drop{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}
+    55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* observe */
+  .sources{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-2);margin-top:42px}
+  .sources div{flex:1 1 130px;padding:15px 0 17px;border-bottom:1px solid var(--line-2);border-right:1px solid var(--line-2);position:relative}
+  .sources div:last-child{border-right:0}
+  .sources em{font-style:normal;font-size:11px;letter-spacing:.2em;color:var(--fg-dim)}
+  .sources i{position:absolute;left:0;bottom:-1px;height:1px;background:var(--accent);width:0;animation:sweep 3.4s infinite}
+  @keyframes sweep{0%{width:0;opacity:1}70%{width:100%;opacity:.8}100%{width:100%;opacity:0}}
+  .counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:52px}
+  .counts div{border-left:1px solid var(--line-2);padding-left:20px}
+  .counts strong{display:block;font-size:clamp(34px,5vw,62px);font-weight:200;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+  .counts em{font-style:normal;font-size:9.5px;letter-spacing:.26em;color:var(--fg-faint)}
+
+  /* cctv */
+  .feedcam{border:1px solid var(--line);position:relative;aspect-ratio:16/10;overflow:hidden;
+    background:linear-gradient(rgba(79,232,200,.05),rgba(79,232,200,.02)),var(--bg-2)}
+  .feedcam .scan{position:absolute;left:0;right:0;height:80px;
+    background:linear-gradient(rgba(79,232,200,0),rgba(79,232,200,.09));animation:scan 4s linear infinite}
+  @keyframes scan{0%{top:-80px}100%{top:100%}}
+  .feedcam .meta{position:absolute;top:12px;left:14px;font-size:9px;letter-spacing:.24em;color:var(--fg-faint)}
+  .feedcam .rec2{position:absolute;top:12px;right:14px;font-size:9px;letter-spacing:.24em;color:var(--red);display:flex;gap:7px;align-items:center}
+  .feedcam .rec2 s{width:6px;height:6px;background:var(--red);border-radius:50%;animation:blink 1.6s infinite;text-decoration:none}
+  @keyframes blink{50%{opacity:.15}}
+  .feedcam .cnt{position:absolute;left:14px;bottom:14px}
+  .feedcam .cnt b{display:block;font-size:32px;font-weight:200;font-variant-numeric:tabular-nums}
+  .feedcam .cnt em{font-style:normal;font-size:9px;letter-spacing:.26em;color:var(--fg-faint)}
+  .feedcam .priv{position:absolute;right:14px;bottom:14px;font-size:8.5px;letter-spacing:.16em;color:var(--accent);
+    border:1px solid rgba(79,232,200,.3);padding:4px 7px}
+  .box{position:absolute;border:1px solid var(--accent);opacity:.75}
+  .node{display:flex;gap:16px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line-2)}
+  .node u{text-decoration:none;font-size:9px;letter-spacing:.2em;color:var(--accent);min-width:92px;padding-top:3px}
+  .node p{margin:0;font-size:13.5px;line-height:1.5;color:var(--fg-dim)}
+  .verdict{margin-top:22px;padding:18px 20px;border:1px solid rgba(79,232,200,.28);background:rgba(79,232,200,.05)}
+  .verdict p{margin:0;font-size:14px;line-height:1.6}
+
+  /* predict */
+  .timeline{margin-top:46px;border-top:1px solid var(--line-2)}
+  .trow{display:grid;grid-template-columns:140px 1fr;gap:22px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line-2)}
+  .trow .nm{font-size:11px;letter-spacing:.2em;color:var(--fg-dim)}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .step{position:relative;padding:10px 12px;border:1px solid var(--line-2);background:rgba(255,255,255,.015)}
+  .step b{display:block;font-size:19px;font-weight:300;font-variant-numeric:tabular-nums}
+  .step em{font-style:normal;font-size:9px;letter-spacing:.24em;color:var(--fg-faint)}
+  .step .fill{position:absolute;left:0;bottom:0;height:2px;background:var(--accent);width:0;transition:width 1.6s cubic-bezier(.2,.8,.2,1)}
+  .step.w .fill{background:var(--amber)} .step.w b{color:var(--amber)}
+  .step.c .fill{background:var(--red)} .step.c b{color:var(--red)}
+  .alarm{margin-top:32px;display:flex;align-items:center;gap:16px;padding:17px 22px;
+    border:1px solid rgba(255,77,94,.4);background:rgba(255,77,94,.06)}
+  .alarm s{width:9px;height:9px;background:var(--red);border-radius:50%;animation:blink 1.4s infinite;text-decoration:none;flex:none}
+  .alarm p{margin:0;font-size:12.5px;letter-spacing:.13em;color:#ffb3ba}
+
+  /* cascade */
+  .cascade{margin-top:44px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0}
+  .cs{padding:20px 22px;border-left:1px solid var(--line-2);opacity:.25;transition:opacity .5s,border-color .5s}
+  .cs.on{opacity:1;border-left-color:var(--accent)}
+  .cs u{text-decoration:none;font-size:9px;letter-spacing:.22em;color:var(--accent)}
+  .cs p{margin:9px 0 0;font-size:13.5px;line-height:1.5;color:var(--fg-dim)}
+
+  /* simulate */
+  .simgrid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(280px,1fr);gap:34px}
+  .slider{width:100%;-webkit-appearance:none;appearance:none;height:1px;background:rgba(255,255,255,.2);margin:32px 0 10px;outline:none}
+  .slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;background:var(--accent);
+    border-radius:50%;cursor:grab;box-shadow:0 0 0 6px rgba(79,232,200,.14)}
+  .slider::-moz-range-thumb{width:20px;height:20px;background:var(--accent);border:0;border-radius:50%;cursor:grab}
+  .ticks{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.16em;color:var(--fg-faint)}
+  .load{display:grid;gap:13px;margin-top:24px}
+  .lrow{display:grid;grid-template-columns:104px 1fr 50px;gap:13px;align-items:center;
+    font-size:10px;letter-spacing:.18em;color:var(--fg-faint)}
+  .bar{height:3px;background:rgba(255,255,255,.08);position:relative;overflow:hidden}
+  .bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);width:20%;
+    transition:width .45s cubic-bezier(.2,.8,.2,1),background .45s}
+  .lrow b{text-align:right;font-size:12px;color:var(--fg);font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:0}
+  .rec-i{display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line-2);
+    font-size:13px;color:var(--fg-dim);opacity:0;transform:translateX(-10px);transition:.4s}
+  .rec-i.on{opacity:1;transform:none}
+  .rec-i s{width:4px;height:4px;background:var(--accent);text-decoration:none;flex:none}
+
+  /* act */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:24px;margin-top:34px}
+  .metric{border:1px solid var(--line-2);padding:20px}
+  .metric em{font-style:normal;font-size:9.5px;letter-spacing:.24em;color:var(--fg-faint)}
+  .metric .v{display:flex;align-items:baseline;gap:11px;margin-top:11px}
+  .metric .v b{font-size:34px;font-weight:200;font-variant-numeric:tabular-nums;transition:color .5s}
+  .metric .v u{text-decoration:none;font-size:11px;color:var(--fg-faint)}
+  .done{margin-top:26px;font-size:11px;letter-spacing:.3em;color:var(--accent);opacity:0;transition:.6s}
+  .done.on{opacity:1}
+
+  /* canteen */
+  .windows{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+  .win{padding:12px 18px;border:1px solid var(--line);background:transparent;color:var(--fg-dim);
+    font-size:12px;cursor:pointer;transition:.25s}
+  .win.sel{border-color:var(--accent);color:var(--accent);background:rgba(79,232,200,.07)}
+  .kv{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:12px;color:var(--fg-faint);letter-spacing:.1em}
+  .kv b{font-size:15px;color:var(--fg);font-weight:300;letter-spacing:0;font-variant-numeric:tabular-nums}
+  .counters{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+  .ctr{border:1px solid var(--line-2);padding:14px}
+  .ctr em{font-style:normal;font-size:9px;letter-spacing:.2em;color:var(--fg-faint)}
+  .ctr b{display:block;font-size:20px;font-weight:300;margin-top:6px;font-variant-numeric:tabular-nums}
+  .ctr.hot{border-color:rgba(255,77,94,.45)} .ctr.hot b{color:var(--red)}
+  .ctr.ok{border-color:rgba(79,232,200,.35)} .ctr.ok b{color:var(--accent)}
+
+  /* maintenance + energy */
+  .assets{margin-top:8px}
+  .asset{display:grid;grid-template-columns:1fr 74px 92px;gap:14px;align-items:center;
+    padding:14px 0;border-bottom:1px solid var(--line-2);cursor:pointer;transition:.25s}
+  .asset:hover{padding-left:8px}
+  .asset .nm{font-size:13.5px}
+  .asset .nm s{display:block;text-decoration:none;font-size:10px;letter-spacing:.14em;color:var(--fg-faint);margin-top:4px}
+  .asset .hp{height:3px;background:rgba(255,255,255,.09);position:relative}
+  .asset .hp i{position:absolute;inset:0 auto 0 0;background:var(--accent)}
+  .asset .risk{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+  .asset.high .hp i{background:var(--red)} .asset.high .risk{color:var(--red)}
+  .asset.med .hp i{background:var(--amber)} .asset.med .risk{color:var(--amber)}
+  .order{margin-top:22px;border:1px solid rgba(79,232,200,.3);padding:20px 22px;opacity:0;
+    max-height:0;overflow:hidden;transition:.6s}
+  .order.on{opacity:1;max-height:420px}
+  .order h5{margin:0 0 14px;font-size:14px;font-weight:400;letter-spacing:.02em}
+  .order .l{display:flex;gap:12px;padding:8px 0;font-size:12.5px;color:var(--fg-dim);border-bottom:1px solid var(--line-2)}
+  .order .l u{text-decoration:none;color:var(--accent);min-width:74px;font-size:9px;letter-spacing:.18em;padding-top:3px}
+  .anom{display:flex;gap:16px;align-items:flex-start;padding:16px 18px;border-left:2px solid var(--amber);
+    background:rgba(245,180,74,.05);margin-top:16px}
+  .anom p{margin:0;font-size:13px;line-height:1.55;color:var(--fg-dim)}
+  .spark{display:flex;gap:3px;align-items:flex-end;height:44px;margin-top:18px}
+  .spark i{flex:1;background:rgba(79,232,200,.35)}
+  .spark i.bad{background:var(--amber)}
+
+  /* emergency */
+  #emergency.armed{background:radial-gradient(ellipse at 30% 50%,rgba(255,77,94,.09),transparent 60%)}
+  .evac{display:grid;grid-template-columns:repeat(3,1fr);margin-top:36px;border-top:1px solid var(--line-2)}
+  .evac div{padding:18px 20px 20px;border-right:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
+  .evac div:last-child{border-right:0}
+  .evac b{display:block;font-size:clamp(26px,3.4vw,42px);font-weight:200;font-variant-numeric:tabular-nums}
+  .evac em{font-style:normal;font-size:9px;letter-spacing:.24em;color:var(--fg-faint)}
+  .routes{margin-top:26px;display:flex;flex-direction:column;gap:10px;font-size:12px}
+  .routes span{display:flex;align-items:center;gap:13px;color:var(--fg-dim)}
+  .routes i{width:30px;height:2px;flex:none}
+  .g{background:var(--accent)} .r{background:var(--red)}
+
+  /* roles */
+  .tabs{display:flex;gap:0;flex-wrap:wrap;border-bottom:1px solid var(--line-2);margin-top:34px}
+  .tab{padding:14px 22px;background:none;border:0;border-bottom:1px solid transparent;margin-bottom:-1px;
+    color:var(--fg-faint);font-size:11px;letter-spacing:.2em;cursor:pointer;transition:.25s}
+  .tab.sel{color:var(--accent);border-bottom-color:var(--accent)}
+  .roleview{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:30px}
+  .roleview ul{list-style:none;padding:0;margin:0}
+  .roleview li{padding:11px 0;border-bottom:1px solid var(--line-2);font-size:13.5px;color:var(--fg-dim)}
+  .roleview .q{font-size:clamp(20px,2.4vw,30px);font-weight:200;line-height:1.3;letter-spacing:-.02em}
+  .roleview .a{margin-top:16px;font-size:13.5px;line-height:1.6;color:var(--fg-dim);
+    border-left:1px solid var(--accent);padding-left:16px}
+
+  /* brain */
+  #brain .wrap{text-align:center}
+  .orbit{position:relative;width:min(86vw,580px);height:min(86vw,580px);margin:22px auto 6px}
+  .orbit .ring{position:absolute;inset:0;border:1px solid var(--line-2);border-radius:50%}
+  .orbit .ring:nth-child(2){inset:16%;border-color:rgba(79,232,200,.12)}
+  .orbit .ring:nth-child(3){inset:32%;border-color:rgba(79,232,200,.18)}
+  .core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:112px;height:112px;border-radius:50%;
+    border:1px solid var(--accent);display:grid;place-content:center;font-size:9.5px;letter-spacing:.22em;
+    color:var(--accent);background:radial-gradient(circle,rgba(79,232,200,.2),transparent 70%);animation:pulse 3.4s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 22px rgba(79,232,200,.04)}}
+  .sat{position:absolute;transform:translate(-50%,-50%);font-size:9px;letter-spacing:.18em;color:var(--fg-dim);
+    padding:7px 11px;border:1px solid var(--line-2);background:rgba(6,12,18,.85);white-space:nowrap}
+  .sat.out{color:var(--accent);border-color:rgba(79,232,200,.3)}
+  .orbit svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .orbit line{stroke:rgba(79,232,200,.16);stroke-width:1;stroke-dasharray:3 7;animation:flow 3s linear infinite}
+  @keyframes flow{to{stroke-dashoffset:-40}}
+
+  /* copilots */
+  .chat{max-width:560px;border:1px solid var(--line);background:var(--glass);backdrop-filter:blur(16px)}
+  .chat .head{padding:13px 20px;border-bottom:1px solid var(--line-2);font-size:9.5px;letter-spacing:.26em;
+    color:var(--fg-faint);display:flex;justify-content:space-between}
+  .chat .q{padding:19px 20px;font-size:16px;border-bottom:1px solid var(--line-2)}
+  .chat .body{padding:8px 20px 20px}
+  .ans{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;padding:12px 0;
+    border-bottom:1px solid var(--line-2);opacity:0;transform:translateY(8px);transition:.5s}
+  .ans.on{opacity:1;transform:none}
+  .ans .l{font-size:11px;letter-spacing:.16em;color:var(--fg-faint)}
+  .ans .v{font-size:15px;font-variant-numeric:tabular-nums}
+  .ev{font-size:8.5px;letter-spacing:.14em;color:var(--accent);border:1px solid rgba(79,232,200,.25);
+    padding:3px 6px;margin-left:9px;white-space:nowrap}
+  .final-rec{margin-top:16px;padding:16px 18px;background:rgba(79,232,200,.06);border-left:2px solid var(--accent);
+    font-size:14px;line-height:1.55}
+  .best{border:1px solid rgba(79,232,200,.3);padding:22px 24px;margin-top:22px;background:rgba(79,232,200,.04)}
+  .best h4{margin:0;font-size:21px;font-weight:300;letter-spacing:-.02em}
+  .best ul{list-style:none;padding:0;margin:14px 0 20px;display:flex;gap:26px;flex-wrap:wrap}
+  .best li{font-size:12px;color:var(--fg-dim)}
+  .best li b{display:block;font-size:19px;color:var(--fg);font-weight:300;margin-bottom:3px}
+
+  /* architecture */
+  .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-top:40px;border-top:1px solid var(--line-2)}
+  .fl{padding:20px 22px 22px;border-right:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
+  .fl u{text-decoration:none;font-size:11px;color:var(--accent);font-variant-numeric:tabular-nums}
+  .fl p{margin:10px 0 0;font-size:13px;line-height:1.5;color:var(--fg-dim)}
+  .stack{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:22px;margin-top:34px}
+  .stack div em{font-style:normal;font-size:9.5px;letter-spacing:.24em;color:var(--fg-faint);display:block;margin-bottom:8px}
+  .stack div p{margin:0;font-size:13px;line-height:1.55;color:var(--fg-dim)}
+
+  /* trust */
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:0;margin-top:38px}
+  .rules div{padding:18px 22px;border-left:1px solid var(--line-2)}
+  .rules b{display:block;font-size:13.5px;font-weight:400;margin-bottom:7px}
+  .rules p{margin:0;font-size:12.5px;line-height:1.55;color:var(--fg-dim)}
+
+  /* finale */
+  #finale{flex-direction:column;justify-content:center;text-align:center;min-height:120vh}
+  #finale .l1,#finale .l2{font-size:clamp(32px,6vw,86px);line-height:1;font-weight:200;letter-spacing:-.045em;margin:0}
+  #finale .l1{color:var(--fg-faint)}
+  #finale .l2{margin-top:18px}
+  footer{position:relative;z-index:2;padding:38px 6vw 44px;border-top:1px solid var(--line-2);
+    display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font-size:10px;letter-spacing:.2em;color:var(--fg-faint)}
+
+  #nofx{position:fixed;left:6vw;right:6vw;top:74px;z-index:9;display:none;padding:18px 22px;max-width:520px;
+    border:1px solid rgba(79,232,200,.3);background:var(--glass);backdrop-filter:blur(14px)}
+
+  @media (max-width:900px){
+    .grid2,.simgrid,.roleview{grid-template-columns:1fr;gap:32px}
+    #hero{align-items:flex-end}
+    #hero .lead{position:static;transform:none;max-width:none;padding:0 6vw 100px}
+    #feed{display:none}
+    .evac,.counters{grid-template-columns:1fr}
+    .evac div{border-right:0}
+    .chapter{padding:88px 6vw}
+    .tag{display:none}
+    .asset{grid-template-columns:1fr 60px}
+    .asset .hp{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.001s!important;transition-duration:.12s!important}}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="labels"></div>
+
+<div id="inspect">
+  <h4 id="ins-name">BLOCK B</h4>
+  <div class="row">Occupancy <span id="ins-occ">82%</span></div>
+  <div class="row">Energy <span id="ins-nrg">18.4 kW</span></div>
+  <div class="row">Rooms in use <span id="ins-rooms">17 / 23</span></div>
+  <div class="ai"><em>AI INSIGHT</em><span id="ins-ai">Critical crowding predicted in 12 minutes.</span></div>
+</div>
+
+<div id="nofx">
+  <p class="eyebrow">SMART CAMPUS 360</p>
+  <h2 style="font-weight:200;letter-spacing:-.02em;margin:8px 0 0;font-size:19px">The 3D twin needs WebGL.</h2>
+  <p class="sub" style="font-size:13px;margin-top:8px">3D rendering is off in this browser. Every other module on this page — prediction, simulation, the drill — still runs.</p>
+</div>
+
+<main>
+
+<!-- HERO -->
+<section class="chapter" id="hero">
+  <div id="ghost"><span>SMART</span><span>CAMPUS</span></div>
+  <div class="bar">
+    <p class="eyebrow">SMART CAMPUS 360</p>
+    <p class="eyebrow" id="clock" style="color:var(--fg-faint)">TWIN SYNC · LIVE</p>
+  </div>
+
+  <div class="lead">
+    <h1>Your campus.<br>Alive.</h1>
+    <p class="sub" style="margin-top:24px">A living digital twin that sees what is happening through the cameras you already own, understands why, predicts what comes next, and helps every role on campus act.</p>
+    <div class="chain" id="chain">
+      <b>SEE</b><b>UNDERSTAND</b><b>PREDICT</b><b>SIMULATE</b><b>ACT</b><b>MEASURE</b>
+    </div>
+    <div class="actions">
+      <button class="btn solid" data-goto="observe"><span class="dot"></span>Enter the digital twin</button>
+      <button class="btn" onclick="window.location.href='/command'">Watch the campus think</button>
+    </div>
+  </div>
+
+  <div id="feed">
+    <div class="line" id="f1"><div class="src">SOURCE</div><div class="val">CCTV · BLOCK B</div></div>
+    <div class="line" id="f2"><div class="src">DETECTED</div><div class="val a">Crowd forming</div></div>
+    <div class="line" id="f3"><div class="src">OCCUPANCY</div><div class="val" id="f3v">82%</div></div>
+    <div class="line" id="f4"><div class="src">PREDICTED · 12 MIN</div><div class="val w" id="f4v">96%</div></div>
+    <div class="line rec" id="f5"><div class="src">AI RECOMMENDATION</div><div class="val a" id="f5v">Open Seminar Hall 2</div></div>
+  </div>
+
+  <div class="scrollcue"><span>SCROLL TO FLY IN</span><i></i></div>
+</section>
+
+<!-- OBSERVE -->
+<section class="chapter" id="observe">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">SEE</p>
+      <h2 class="huge">Observe.</h2>
+      <p class="sub" style="margin-top:20px">One twin. Every corner of your campus, on the same clock — built on the cameras and systems the college already runs.</p>
+    </div>
+    <div class="sources reveal">
+      <div><em>CCTV</em><i></i></div>
+      <div><em>Timetable &amp; ERP</em><i style="animation-delay:.5s"></i></div>
+      <div><em>IoT sensors</em><i style="animation-delay:1s"></i></div>
+      <div><em>Events</em><i style="animation-delay:1.5s"></i></div>
+      <div><em>Transport</em><i style="animation-delay:2s"></i></div>
+      <div><em>Canteen orders</em><i style="animation-delay:2.5s"></i></div>
+    </div>
+    <div class="counts reveal">
+      <div><strong data-count="12482">0</strong><em>PEOPLE ON CAMPUS</em></div>
+      <div><strong data-count="642">0</strong><em>ROOMS TRACKED</em></div>
+      <div><strong data-count="87">0</strong><em>BUILDINGS TWINNED</em></div>
+      <div><strong data-count="24">0</strong><em>ACTIVE EVENTS</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- UNDERSTAND -->
+<section class="chapter" id="understand">
+  <div class="wrap grid2">
+    <div class="reveal">
+      <div class="feedcam" id="cam">
+        <div class="scan"></div>
+        <div class="meta">CAM 14 · SEMINAR HALL · ENTRANCE A</div>
+        <div class="rec2"><s></s>LIVE</div>
+        <div class="cnt"><b id="camcount">0</b><em>PEOPLE DETECTED</em></div>
+        <div class="priv">COUNTS ONLY · NO IDENTITY</div>
+      </div>
+      <div style="margin-top:24px">
+        <div class="node"><u>CCTV</u><p>Inflow at the north entrance is up 38% on the same slot last week.</p></div>
+        <div class="node"><u>TIMETABLE</u><p>A scheduled event expects 700 attendees; the hall seats 500.</p></div>
+        <div class="node"><u>PARKING</u><p>Lot occupancy has climbed to 82% in eleven minutes.</p></div>
+        <div class="node"><u>TRANSPORT</u><p>Shuttle 04 arrived full. Two more are inbound.</p></div>
+      </div>
+    </div>
+    <div class="reveal">
+      <p class="eyebrow">UNDERSTAND</p>
+      <h2 class="huge" style="font-size:clamp(44px,7.6vw,116px)">Why?</h2>
+      <p class="sub" style="margin-top:18px">Detection tells you a hall is full. The twin tells you what filled it, and what that means for the next twenty minutes.</p>
+      <div class="verdict">
+        <p><strong style="font-weight:400">Seminar Hall is at 420 / 500 and climbing.</strong> Expected attendance exceeds capacity by 200. Inflow, parking and transport all point the same way: overflow in roughly twelve minutes unless a second room opens.</p>
+      </div>
+      <p class="k" style="margin-top:16px">EVERY CLAIM ABOVE IS TRACED TO A LIVE SOURCE</p>
+    </div>
+  </div>
+</section>
+
+<!-- PREDICT -->
+<section class="chapter" id="predict">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">PREDICT</p>
+      <h2 class="huge">Predict.</h2>
+      <p class="sub" style="margin-top:18px">Don't wait for the queue. Watch it form before it does.</p>
+    </div>
+    <div class="timeline reveal" id="timeline">
+      <div class="trow"><div class="nm"></div><div class="steps">
+        <div class="step" style="border:0;background:none;padding-left:0"><em>NOW</em></div>
+        <div class="step" style="border:0;background:none;padding-left:0"><em>+10 MIN</em></div>
+        <div class="step" style="border:0;background:none;padding-left:0"><em>+30 MIN</em></div>
+      </div></div>
+      <div class="trow" data-v="42,67,94"><div class="nm">Library</div><div class="steps"></div></div>
+      <div class="trow" data-v="51,81,98"><div class="nm">Canteen</div><div class="steps"></div></div>
+      <div class="trow" data-v="63,78,91"><div class="nm">Parking</div><div class="steps"></div></div>
+      <div class="trow" data-v="58,74,89"><div class="nm">Shuttle network</div><div class="steps"></div></div>
+    </div>
+    <div class="alarm reveal"><s></s><p>CRITICAL CONGESTION PREDICTED IN 10 MINUTES · LIBRARY &amp; CANTEEN CORRIDOR</p></div>
+  </div>
+</section>
+
+<!-- CASCADE -->
+<section class="chapter" id="cascade">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">WHY 360 MATTERS</p>
+      <h2 class="mid">One seminar at 2 PM.<br>Nine systems feel it.</h2>
+      <p class="sub" style="margin-top:18px">A crowd is never only a security event. Because every module reads the same twin, one real-world event propagates to all of them without anyone forwarding a message.</p>
+    </div>
+    <div class="cascade reveal" id="cascade">
+      <div class="cs"><u>EVENT SYSTEM</u><p>700 attendees expected at Seminar Hall.</p></div>
+      <div class="cs"><u>CCTV</u><p>420 people approaching; entrance queue rising.</p></div>
+      <div class="cs"><u>DIGITAL TWIN</u><p>Crowd mapped to hall, entrances and corridors.</p></div>
+      <div class="cs"><u>PREDICTION</u><p>Critical congestion in 10 minutes.</p></div>
+      <div class="cs"><u>NAVIGATION</u><p>Student routes redirected away from the north corridor.</p></div>
+      <div class="cs"><u>SECURITY</u><p>Three staff recommended at Entrance B.</p></div>
+      <div class="cs"><u>TRANSPORT</u><p>Parking at 82%; two extra shuttles scheduled.</p></div>
+      <div class="cs"><u>CANTEEN</u><p>Post-event demand forecast raised 34%.</p></div>
+      <div class="cs"><u>ENERGY</u><p>HVAC pre-conditioned for the larger load.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SIMULATE -->
+<section class="chapter" id="simulate">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">SIMULATE</p>
+      <h2 class="huge">What if?</h2>
+      <p class="sub" style="margin-top:18px">Test the decision on the twin before you make it on the campus.</p>
+    </div>
+    <div class="simgrid reveal" style="margin-top:40px">
+      <div class="panel">
+        <p style="margin:0;font-size:16px">What if <b id="simN" style="font-weight:400;color:var(--accent)">700</b> people attend tomorrow's seminar?</p>
+        <input class="slider" id="sim" type="range" min="300" max="1500" step="50" value="700" aria-label="Expected attendance">
+        <div class="ticks"><span>300</span><span>700</span><span>1,000</span><span>1,500</span></div>
+        <div class="load">
+          <div class="lrow"><span>SEATING</span><div class="bar"><i data-l="seat"></i></div><b data-n="seat">0%</b></div>
+          <div class="lrow"><span>PARKING</span><div class="bar"><i data-l="park"></i></div><b data-n="park">0%</b></div>
+          <div class="lrow"><span>TRANSPORT</span><div class="bar"><i data-l="bus"></i></div><b data-n="bus">0%</b></div>
+          <div class="lrow"><span>CAFETERIA</span><div class="bar"><i data-l="food"></i></div><b data-n="food">0%</b></div>
+          <div class="lrow"><span>ENERGY</span><div class="bar"><i data-l="nrg"></i></div><b data-n="nrg">0%</b></div>
+        </div>
+      </div>
+      <div>
+        <p class="k">THE TWIN'S RESPONSE PLAN</p>
+        <div id="recs"></div>
+        <p class="sub" style="font-size:13px;margin-top:22px">The campus behind you runs the same numbers — crowd density, flow paths and colour all shift with the slider.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ACT -->
+<section class="chapter" id="act">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">ACT</p>
+      <h2 class="huge">Act.</h2>
+      <p class="sub" style="margin-top:18px">An insight nobody can execute is just a dashboard. Consequential actions still wait for a human to approve them.</p>
+    </div>
+    <div class="panel reveal" style="margin-top:36px;max-width:820px">
+      <p class="k">AI RECOMMENDATION</p>
+      <p style="font-size:21px;margin:13px 0 0">Open Seminar Hall 2 and redirect inflow through Entrance B.</p>
+      <div class="metrics">
+        <div class="metric"><em>CROWD DENSITY</em><div class="v"><b data-m="dens">96%</b><u id="dens-d"></u></div></div>
+        <div class="metric"><em>QUEUE TIME</em><div class="v"><b data-m="q">18 min</b><u id="q-d"></u></div></div>
+        <div class="metric"><em>EVACUATION MARGIN</em><div class="v"><b data-m="e">Low</b><u id="e-d"></u></div></div>
+      </div>
+      <div style="margin-top:28px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn solid" id="apply"><span class="dot"></span>Approve and apply</button>
+        <span class="done" id="done">APPLIED · MEASURED AGAINST PREDICTION</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CANTEEN -->
+<section class="chapter" id="canteen">
+  <div class="wrap grid2">
+    <div class="reveal">
+      <p class="eyebrow">SMART CANTEEN</p>
+      <h2 class="mid">An order is a<br>demand signal.</h2>
+      <p class="sub" style="margin-top:18px">Order-ahead isn't a food app bolted on the side. Every advance order tells the kitchen what to cook and tells the twin where the queue will form.</p>
+      <div class="windows" id="windows">
+        <button class="win" data-w="0">12:00 – 12:30</button>
+        <button class="win sel" data-w="1">12:30 – 13:00</button>
+        <button class="win" data-w="2">13:00 – 13:30</button>
+      </div>
+      <p class="k">PICK A WINDOW TO SEE THE FORECAST MOVE</p>
+    </div>
+    <div class="reveal panel">
+      <div class="kv"><span>PRE-ORDERS IN WINDOW</span><b id="c1">240</b></div>
+      <div class="kv"><span>FORECAST TOTAL DEMAND</span><b id="c2">420</b></div>
+      <div class="kv"><span>PREDICTED PEAK QUEUE</span><b id="c3">14 min</b></div>
+      <div class="kv"><span>PREP ADJUSTMENT</span><b id="c4">+38%</b></div>
+      <div class="counters">
+        <div class="ctr" id="ct1"><em>COUNTER 1</em><b>62%</b></div>
+        <div class="ctr hot" id="ct2"><em>COUNTER 3</em><b>94%</b></div>
+        <div class="ctr ok" id="ct3"><em>COUNTER 2</em><b>41%</b></div>
+      </div>
+      <p class="sub" style="font-size:13px;margin-top:20px" id="canrec">Counter 3 is congesting. New pickups routed to Counter 2; kitchen prep raised for the 12:30 spike.</p>
+    </div>
+  </div>
+</section>
+
+<!-- MAINTENANCE + ENERGY -->
+<section class="chapter" id="operations">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">PREDICTIVE OPERATIONS</p>
+      <h2 class="mid">Fix it before<br>anyone reports it.</h2>
+      <p class="sub" style="margin-top:18px">Every maintainable asset is a twin object with history, telemetry and a health score. Complaints stop being the first signal.</p>
+    </div>
+    <div class="grid2 reveal" style="margin-top:38px;align-items:flex-start">
+      <div>
+        <p class="k">ASSET RISK · THIS WEEK</p>
+        <div class="assets" id="assets">
+          <div class="asset high" data-a="0"><div class="nm">AC-A204-01<s>ROOM A-204 · BLOCK A</s></div>
+            <div class="hp"><i style="width:26%"></i></div><div class="risk">81% risk</div></div>
+          <div class="asset med" data-a="1"><div class="nm">LIFT-B-02<s>BLOCK B · SERVICE CORE</s></div>
+            <div class="hp"><i style="width:54%"></i></div><div class="risk">47% risk</div></div>
+          <div class="asset" data-a="2"><div class="nm">PUMP-UTIL-03<s>UTILITY YARD</s></div>
+            <div class="hp"><i style="width:88%"></i></div><div class="risk">9% risk</div></div>
+        </div>
+        <div class="order" id="order">
+          <h5 id="order-t">Work order · AC-A204-01</h5>
+          <div class="l"><u>SIGNAL</u><span id="o1">Cooling output down 31% against baseline for the same occupancy.</span></div>
+          <div class="l"><u>HISTORY</u><span id="o2">Two complaints in 14 days; last service 11 months ago.</span></div>
+          <div class="l"><u>PREDICTION</u><span id="o3">Compressor failure likely within 9 days.</span></div>
+          <div class="l"><u>ASSIGNED</u><span id="o4">Technician R. Kale · Block A · priority high</span></div>
+        </div>
+        <p class="k" style="margin-top:16px">SELECT AN ASSET TO OPEN ITS WORK ORDER</p>
+      </div>
+      <div>
+        <p class="k">ENERGY INTELLIGENCE</p>
+        <div class="anom">
+          <div>
+            <p><strong style="font-weight:400;color:var(--fg)">Anomaly · Block A, floor 2.</strong> Air conditioning has been running in six rooms the timetable says are empty. 14.2 kW drawn against a predicted 2.1 kW for this hour.</p>
+          </div>
+        </div>
+        <div class="spark" id="spark"></div>
+        <p class="sub" style="font-size:13px;margin-top:16px">Consumption is compared against occupancy, timetable and the building's own baseline — which is how an empty room drawing power becomes visible at all.</p>
+        <button class="btn sm" id="fixnrg" style="margin-top:20px">Schedule shutdown</button>
+        <span class="done" id="nrgdone" style="margin-left:12px">SCHEDULED · 12.1 kW RECOVERED</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EMERGENCY -->
+<section class="chapter" id="emergency">
+  <div class="wrap grid2">
+    <div class="reveal">
+      <p class="eyebrow">SAFETY</p>
+      <h2 class="mid">When the unexpected happens.</h2>
+      <p class="sub" style="margin-top:18px">Routes are computed against the campus as it is right now — live crowd positions and blocked corridors — not a printed floor plan from 2014.</p>
+      <button class="btn" id="drill" style="margin-top:28px;border-color:rgba(255,77,94,.5);color:#ff8f99">Run evacuation drill</button>
+    </div>
+    <div class="reveal">
+      <div class="panel" id="evacpanel" style="opacity:.35;transition:opacity .6s">
+        <p class="k" id="evac-state">SYSTEM NOMINAL · NO ACTIVE INCIDENT</p>
+        <div class="evac">
+          <div><b id="ev1">—</b><em>OCCUPANTS</em></div>
+          <div><b id="ev2">—</b><em>SAFE EXITS</em></div>
+          <div><b id="ev3">—</b><em>EST. EVACUATION</em></div>
+        </div>
+        <div class="routes">
+          <span><i class="r"></i>North stair — blocked, smoke detected on floor 2</span>
+          <span><i class="g"></i>East stair — clear, 46 people routed</span>
+          <span><i class="g"></i>Service corridor — clear, 81 people routed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<section class="chapter" id="roles">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">ONE PLATFORM</p>
+      <h2 class="mid">Five people open it.<br>Five different campuses.</h2>
+      <p class="sub" style="margin-top:18px">Same twin, same numbers, different permissions and different questions.</p>
+    </div>
+    <div class="reveal">
+      <div class="tabs" id="tabs">
+        <button class="tab sel" data-r="0">STUDENT</button>
+        <button class="tab" data-r="1">FACULTY</button>
+        <button class="tab" data-r="2">SECURITY</button>
+        <button class="tab" data-r="3">MAINTENANCE</button>
+        <button class="tab" data-r="4">ADMIN</button>
+      </div>
+      <div class="roleview">
+        <ul id="rolelist"></ul>
+        <div>
+          <p class="q" id="roleq"></p>
+          <p class="a" id="rolea"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BRAIN -->
+<section class="chapter" id="brain">
+  <div class="wrap">
+    <div class="reveal">
+      <h2 class="mid">One campus.<br>One digital twin.<br>One intelligence layer.</h2>
+    </div>
+    <div class="orbit reveal" id="orbit">
+      <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+      <svg id="orbitlines"></svg>
+      <div class="core">CAMPUS AI</div>
+    </div>
+    <p class="sub reveal" style="margin:auto">Eight systems in. Explanations, predictions, recommendations and actions out. Nothing else on campus has to be replaced.</p>
+  </div>
+</section>
+
+<!-- ADMIN COPILOT -->
+<section class="chapter" id="admin">
+  <div class="wrap grid2">
+    <div class="reveal">
+      <p class="eyebrow">ADMIN COPILOT</p>
+      <h2 class="mid">Ask the campus.</h2>
+      <p class="sub" style="margin-top:18px">The behaviour that matters is investigation: retrieve from several systems, reason across them, show the evidence, then recommend. Every number carries its receipt.</p>
+    </div>
+    <div class="chat reveal" id="adminchat">
+      <div class="head"><span>CAMPUS COPILOT</span><span>ADMIN · FACILITIES</span></div>
+      <div class="q">"Why is there so much crowd at the seminar hall?"</div>
+      <div class="body">
+        <div class="ans"><div class="l">Current occupancy</div><div class="v">84% <span class="ev">CAM 14</span></div></div>
+        <div class="ans"><div class="l">Expected attendance</div><div class="v">700 <span class="ev">EVENT #221</span></div></div>
+        <div class="ans"><div class="l">Entrance inflow</div><div class="v">+38% <span class="ev">GATE LOG</span></div></div>
+        <div class="ans"><div class="l">Parking</div><div class="v">82% <span class="ev">LOT SENSOR</span></div></div>
+        <div class="ans"><div class="l">Prediction</div><div class="v" style="color:var(--amber)">Critical in 10 min <span class="ev">MODEL v4</span></div></div>
+        <div class="final-rec">Open Entrance B, deploy three staff to the north corridor, hold Seminar Hall 2 for overflow.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STUDENT COPILOT -->
+<section class="chapter" id="student">
+  <div class="wrap grid2">
+    <div class="reveal">
+      <div class="chat">
+        <div class="head"><span>CAMPUS COMPANION</span><span>STUDENT</span></div>
+        <div class="q">"Where can I study right now?"</div>
+        <div class="body">
+          <p class="k" style="padding:10px 0">CHECKING · LIBRARY ZONES · STUDY ROOMS · NOISE CLASS · WALKING DISTANCE</p>
+          <div class="best">
+            <h4>Library — 2nd floor, east wing</h4>
+            <ul>
+              <li><b>38</b>seats free</li>
+              <li><b>Quiet</b>zone class</li>
+              <li><b>4 min</b>from you</li>
+            </ul>
+            <button class="btn solid" style="padding:12px 20px"><span class="dot"></span>Navigate</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="reveal">
+      <p class="eyebrow">STUDENT COMPANION</p>
+      <h2 class="mid">Same twin.<br>Different question.</h2>
+      <p class="sub" style="margin-top:18px">Facilities asks about congestion. A student asks for a quiet seat, the next bus, or today's menu. Both answers come from one model of the campus, so they never contradict each other — and the companion answers from authorised college data rather than inventing campus facts.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="chapter" id="architecture">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">HOW IT IS BUILT</p>
+      <h2 class="mid">Observation to action,<br>in eight steps.</h2>
+    </div>
+    <div class="flow reveal">
+      <div class="fl"><u>01</u><p>CCTV, college systems and optional IoT emit events.</p></div>
+      <div class="fl"><u>02</u><p>Ingestion normalises them into shared campus entities.</p></div>
+      <div class="fl"><u>03</u><p>Computer vision turns video into counts, queues and flow — never identities.</p></div>
+      <div class="fl"><u>04</u><p>The twin store holds current state, history and spatial relationships.</p></div>
+      <div class="fl"><u>05</u><p>ML services predict demand, detect anomalies and optimise allocation.</p></div>
+      <div class="fl"><u>06</u><p>A retrieval layer grounds every answer in campus documents and live state.</p></div>
+      <div class="fl"><u>07</u><p>Role-based interfaces show each person only what they are permitted to see.</p></div>
+      <div class="fl"><u>08</u><p>Approved actions flow back to people and authorised campus systems.</p></div>
+    </div>
+    <div class="stack reveal">
+      <div><em>FRONTEND</em><p>React / Next.js, Three.js scene for the twin, WebSocket live state.</p></div>
+      <div><em>BACKEND</em><p>FastAPI or Node, REST plus WebSocket, PostgreSQL with PostGIS, Redis.</p></div>
+      <div><em>VISION</em><p>YOLO-family detection and tracking on prerecorded feeds for the prototype.</p></div>
+      <div><em>INTELLIGENCE</em><p>LLM with retrieval and tool calling; time-series baselines for forecasting; constraint solver for allocation.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- TRUST -->
+<section class="chapter" id="trust">
+  <div class="wrap">
+    <div class="reveal">
+      <p class="eyebrow">RESPONSIBLE BY DESIGN</p>
+      <h2 class="mid">Cameras that count,<br>not cameras that watch you.</h2>
+      <p class="sub" style="margin-top:18px">A campus platform only earns deployment if the people inside it are comfortable with how it works.</p>
+    </div>
+    <div class="rules reveal">
+      <div><b>Counts, not identities</b><p>Zone-level analytics by default. Face recognition is not required for anything the product does.</p></div>
+      <div><b>Least privilege</b><p>Raw feeds stay with the people whose job needs them. Every role sees a different slice.</p></div>
+      <div><b>Facts marked apart from guesses</b><p>Live measurement, prediction and recommendation are labelled distinctly, never blended into one confident number.</p></div>
+      <div><b>Humans approve consequences</b><p>Access changes, emergency controls and shutdowns wait for a person. Every AI-triggered action is logged.</p></div>
+    </div>
+    <div class="counts reveal" style="margin-top:44px">
+      <div><strong data-count="31">0</strong><em>% SHORTER CANTEEN WAIT</em></div>
+      <div><strong data-count="19">0</strong><em>% ENERGY PER OCCUPIED ROOM</em></div>
+      <div><strong data-count="12">0</strong><em>FAILURES CAUGHT EARLY</em></div>
+      <div><strong data-count="87">0</strong><em>% CROWD FORECAST ACCURACY</em></div>
+    </div>
+    <p class="k reveal" style="margin-top:18px">PILOT TARGETS — MEASURED BACK AGAINST PREDICTION, WHICH IS THE LAST STEP OF THE LOOP</p>
+  </div>
+</section>
+
+<!-- FINALE -->
+<section class="chapter" id="finale">
+  <div class="wrap">
+    <p class="l1 reveal">Most campuses collect data.</p>
+    <p class="l2 reveal">We built one that thinks.</p>
+    <p class="sub reveal" style="margin:34px auto 0;max-width:48ch">Smart Campus 360 — a living digital twin that sees what is happening, understands why, predicts what comes next, simulates the decision, and helps every person on campus act.</p>
+    <div class="actions reveal" style="justify-content:center">
+      <button class="btn solid" data-goto="hero"><span class="dot"></span>Enter the digital twin</button>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>SMART CAMPUS 360</span>
+  <span>DIGITAL TWIN · CCTV INTELLIGENCE · CAMPUS OPERATIONS</span>
+  <span>SEE · UNDERSTAND · PREDICT · SIMULATE · ACT · MEASURE</span>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var mobile  = window.innerWidth < 900;
+
+/* ---------------- twin registry ---------------- */
+var B = [
+  {k:"blockA", n:"BLOCK A", f:"Academic Block A", x:-19, z:-10, w:12, d:14, h:13, occ:72, nrg:24.6, rooms:"19 / 26", ai:"AC running in 6 empty rooms on floor 2."},
+  {k:"blockB", n:"BLOCK B", f:"Academic Block B", x:-19, z:10,  w:12, d:14, h:15, occ:82, nrg:18.4, rooms:"17 / 23", ai:"Critical crowding predicted in 12 minutes."},
+  {k:"library",n:"LIBRARY", f:"Central Library",  x:1,  z:-22, w:17, d:11, h:10, occ:78, nrg:31.2, rooms:"9 / 12",  ai:"Second floor east has 38 free seats."},
+  {k:"seminar",n:"SEMINAR HALL", f:"Seminar Hall",x:19, z:-12, w:14, d:13, h:12, occ:84, nrg:22.9, rooms:"437 / 500", ai:"Expected attendance exceeds capacity by 200."},
+  {k:"canteen",n:"CANTEEN", f:"Cafeteria",        x:20, z:8,   w:12, d:11, h:6,  occ:91, nrg:40.1, rooms:"Queue high", ai:"Counter 3 congested. Route pickups to Counter 2."},
+  {k:"sports", n:"SPORTS",  f:"Sports Complex",   x:3,  z:23,  w:22, d:12, h:8,  occ:34, nrg:12.8, rooms:"3 / 8",   ai:"Capacity available. Viable overflow venue."},
+  {k:"admin",  n:"ADMIN",   f:"Administration",   x:-20,z:28,  w:14, d:11, h:10, occ:46, nrg:15.5, rooms:"11 / 20", ai:"Nominal. No open incidents."},
+  {k:"hostel", n:"HOSTEL",  f:"Residence Block",  x:-34,z:-28, w:11, d:20, h:16, occ:63, nrg:28.3, rooms:"96 / 140", ai:"Evening inflow begins in 40 minutes."}
+];
+var PARK = {x:24, z:26, w:26, d:16};
+
+var stage = document.getElementById("stage");
+var hasGL = (function(){
+  try{ var c=document.createElement("canvas");
+    return !!(window.WebGLRenderingContext && (c.getContext("webgl")||c.getContext("experimental-webgl"))); }
+  catch(e){ return false; }
+})();
+
+var scene, camera, renderer, campus, raycaster, mouse = new THREE.Vector2(-2,-2);
+var pickables = [], meshOf = {}, edgeOf = {}, glowOf = {};
+var people, peopleData = [], routes = [], pulses, pulseData = [], core, coreRing;
+var clock, hovered = null, spin = 1, ready = false;
+var state = { crowd:1, emergency:false };
+
+/* ---------------- camera choreography ---------------- */
+var SHOTS = {
+  hero:        {p:[0, 40, 96],   look:[0,8,0], spin:1.00},
+  observe:     {p:[62, 34, 66],  look:[0,6,0], spin:0.75},
+  understand:  {p:[40, 16, 6],   focus:"seminar", spin:0.28},
+  predict:     {p:[0, 74, 74],   look:[0,2,0], spin:0.55},
+  cascade:     {p:[46, 26, -30], look:[0,6,0], spin:0.50},
+  simulate:    {p:[-58, 32, 54], look:[0,5,0], spin:0.45},
+  act:         {p:[26, 20, 40],  look:[0,6,0], spin:0.50},
+  canteen:     {p:[46, 14, 26],  focus:"canteen", spin:0.24},
+  operations:  {p:[-44, 18, -24],focus:"blockA",  spin:0.24},
+  emergency:   {p:[-52, 22, 30], focus:"blockB",  spin:0.16},
+  roles:       {p:[0, 46, 84],   look:[0,6,0], spin:0.70},
+  brain:       {p:[0, 88, 12],   look:[0,6,0], spin:0.40},
+  admin:       {p:[44, 26, 48],  look:[0,6,0], spin:0.55},
+  student:     {p:[-14, 18, -52],focus:"library", spin:0.30},
+  architecture:{p:[0, 96, 46],   look:[0,4,0], spin:0.45},
+  trust:       {p:[-40, 30, -60],look:[0,6,0], spin:0.50},
+  finale:      {p:[0, 34, 112],  look:[0,9,0], spin:0.85}
+};
+var ORDER = ["hero","observe","understand","predict","cascade","simulate","act","canteen",
+             "operations","emergency","roles","brain","admin","student","architecture","trust","finale"];
+var sections = [];
+
+/* ---------------- scene build ---------------- */
+function init(){
+  clock = new THREE.Clock();
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04070d, 0.0072);
+
+  camera = new THREE.PerspectiveCamera(38, window.innerWidth/window.innerHeight, 0.5, 700);
+  camera.position.set(0, 40, 96);
+
+  renderer = new THREE.WebGLRenderer({antialias:!mobile, alpha:true, powerPreference:"high-performance"});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile?1.5:2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = !mobile;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.domElement.style.pointerEvents = "auto";
+  stage.appendChild(renderer.domElement);
+
+  campus = new THREE.Group();
+  scene.add(campus);
+
+  lights(); ground(); roads(); buildings(); parking(); trees();
+  brainCore(); crowdSystem(); pulseSystem(); atmosphere();
+
+  raycaster = new THREE.Raycaster();
+  window.addEventListener("resize", onResize);
+  window.addEventListener("pointermove", onMove, {passive:true});
+
+  ready = true;
+  tick();
+}
+
+function lights(){
+  scene.add(new THREE.AmbientLight(0x24405a, 0.75));
+  var key = new THREE.DirectionalLight(0xbfe9ff, 1.15);
+  key.position.set(-60, 90, 48);
+  if(!mobile){
+    key.castShadow = true; key.shadow.mapSize.set(1024,1024);
+    var c = key.shadow.camera;
+    c.left=-90; c.right=90; c.top=90; c.bottom=-90; c.near=10; c.far=240;
+    key.shadow.bias = -0.0006;
+  }
+  scene.add(key);
+  var rim = new THREE.DirectionalLight(0x4fe8c8, 0.5); rim.position.set(70,30,-70); scene.add(rim);
+  var plaza = new THREE.PointLight(0x4fe8c8, 1.6, 90, 2); plaza.position.set(0,14,0); scene.add(plaza);
+}
+
+function ground(){
+  var g = new THREE.Mesh(new THREE.PlaneGeometry(240,240),
+    new THREE.MeshStandardMaterial({color:0x060a11, roughness:.95, metalness:.05}));
+  g.rotation.x = -Math.PI/2; g.receiveShadow = true; g.position.y = -0.02; campus.add(g);
+
+  var grid = new THREE.GridHelper(240, 48, 0x1d4a48, 0x122a30);
+  grid.material.transparent = true; grid.material.opacity = .17; campus.add(grid);
+
+  var disc = new THREE.Mesh(new THREE.CircleGeometry(13,64),
+    new THREE.MeshBasicMaterial({color:0x0c2b2b, transparent:true, opacity:.5}));
+  disc.rotation.x = -Math.PI/2; disc.position.y = .06; campus.add(disc);
+
+  [13.4,16.5,20].forEach(function(r,i){
+    var ring = new THREE.Mesh(new THREE.RingGeometry(r, r+.16, 96),
+      new THREE.MeshBasicMaterial({color:0x4fe8c8, transparent:true, opacity:.3-i*.08, side:THREE.DoubleSide}));
+    ring.rotation.x = -Math.PI/2; ring.position.y = .07; campus.add(ring);
+  });
+}
+
+function seg(x1,z1,x2,z2,w,color,op,y){
+  var dx=x2-x1, dz=z2-z1, len=Math.sqrt(dx*dx+dz*dz);
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(w,len),
+    new THREE.MeshBasicMaterial({color:color, transparent:true, opacity:op}));
+  m.rotation.x = -Math.PI/2; m.rotation.z = -Math.atan2(dx,dz);
+  m.position.set((x1+x2)/2, y||0.04, (z1+z2)/2);
+  campus.add(m); return m;
+}
+
+function roads(){
+  var R = 34;
+  seg(-R,-R, R,-R, 4.4, 0x0f2733,.85); seg(R,-R, R,R, 4.4, 0x0f2733,.85);
+  seg(R,R, -R,R, 4.4, 0x0f2733,.85);   seg(-R,R,-R,-R, 4.4, 0x0f2733,.85);
+  seg(-R,-R, R,-R, .28, 0x4fe8c8,.30,.06); seg(R,R,-R,R, .28, 0x4fe8c8,.30,.06);
+  B.forEach(function(b){
+    seg(b.x,b.z, b.x*0.28,b.z*0.28, 2.0, 0x0e2230,.8);
+    seg(b.x,b.z, b.x*0.28,b.z*0.28, .18, 0x4fe8c8,.26,.06);
+  });
+  seg(PARK.x,PARK.z, R,R, 3.2, 0x0e2230,.8);
+}
+
+function buildings(){
+  B.forEach(function(b){
+    var g = new THREE.Group(); g.position.set(b.x,0,b.z);
+    var geo = new THREE.BoxGeometry(b.w,b.h,b.d);
+    var mat = new THREE.MeshStandardMaterial({color:0x0b1520, roughness:.62, metalness:.28,
+      emissive:new THREE.Color(0x04211f), emissiveIntensity:.55});
+    var m = new THREE.Mesh(geo,mat); m.position.y=b.h/2;
+    m.castShadow=true; m.receiveShadow=true; m.userData=b;
+    g.add(m); pickables.push(m); meshOf[b.k]=m;
+
+    var e = new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({color:0x4fe8c8, transparent:true, opacity:.34}));
+    e.position.y=b.h/2; g.add(e); edgeOf[b.k]=e;
+
+    var floors = Math.max(2, Math.round(b.h/2.6));
+    for(var i=1;i<floors;i++){
+      var band = new THREE.Mesh(new THREE.BoxGeometry(b.w+0.06,0.32,b.d+0.06),
+        new THREE.MeshBasicMaterial({color:0x9ff5e4, transparent:true, opacity:.10+Math.random()*.16}));
+      band.position.y = i*(b.h/floors); g.add(band);
+    }
+    var cap = new THREE.Mesh(new THREE.BoxGeometry(b.w*.55,.35,b.d*.55),
+      new THREE.MeshBasicMaterial({color:0x4fe8c8, transparent:true, opacity:.35}));
+    cap.position.y = b.h+.2; g.add(cap);
+
+    var glow = new THREE.Mesh(new THREE.BoxGeometry(b.w+1.2,b.h+1.2,b.d+1.2),
+      new THREE.MeshBasicMaterial({color:0x4fe8c8, transparent:true, opacity:0, side:THREE.BackSide}));
+    glow.position.y=b.h/2; g.add(glow); glowOf[b.k]=glow;
+
+    var fp = new THREE.Mesh(new THREE.PlaneGeometry(b.w+2.4,b.d+2.4),
+      new THREE.MeshBasicMaterial({color:0x123b3d, transparent:true, opacity:.5}));
+    fp.rotation.x=-Math.PI/2; fp.position.y=.05; g.add(fp);
+
+    campus.add(g);
+    b.top = new THREE.Vector3(b.x, b.h+3.2, b.z);
+  });
+}
+
+function parking(){
+  var lot = new THREE.Mesh(new THREE.PlaneGeometry(PARK.w,PARK.d),
+    new THREE.MeshStandardMaterial({color:0x080e15, roughness:.9}));
+  lot.rotation.x=-Math.PI/2; lot.position.set(PARK.x,.05,PARK.z); lot.receiveShadow=true; campus.add(lot);
+  for(var i=0;i<7;i++){
+    seg(PARK.x-PARK.w/2+2.2+i*3.5, PARK.z-PARK.d/2+1.6,
+        PARK.x-PARK.w/2+2.2+i*3.5, PARK.z+PARK.d/2-1.6, .12, 0x2f6f68, .5, .07);
+  }
+  var carGeo = new THREE.BoxGeometry(1.5,.55,3);
+  var carMat = new THREE.MeshStandardMaterial({color:0x101c26, roughness:.5, metalness:.5, emissive:0x0a2a2a});
+  for(var r=0;r<6;r++) for(var c=0;c<2;c++){
+    var car = new THREE.Mesh(carGeo,carMat);
+    car.position.set(PARK.x-PARK.w/2+3.9+r*3.5, .35, PARK.z-3.4+c*6.4);
+    car.castShadow = !mobile; campus.add(car);
+  }
+}
+
+function trees(){
+  var tg = new THREE.ConeGeometry(1.5,4.4,6);
+  var tm = new THREE.MeshStandardMaterial({color:0x0d2a24, roughness:.9, emissive:0x061a17});
+  var kg = new THREE.CylinderGeometry(.16,.22,1.4,5);
+  var km = new THREE.MeshStandardMaterial({color:0x14181c, roughness:1});
+  var n = mobile?26:54;
+  for(var i=0;i<n;i++){
+    var a = Math.random()*Math.PI*2, r = 15+Math.random()*30;
+    var x = Math.cos(a)*r, z = Math.sin(a)*r;
+    var clash = B.some(function(b){ return Math.abs(x-b.x)<b.w/2+3 && Math.abs(z-b.z)<b.d/2+3; });
+    if(clash) continue;
+    if(Math.abs(x-PARK.x)<PARK.w/2 && Math.abs(z-PARK.z)<PARK.d/2) continue;
+    var t = new THREE.Mesh(tg,tm); t.position.set(x,3.0,z); t.castShadow=!mobile;
+    var k = new THREE.Mesh(kg,km); k.position.set(x,.7,z);
+    campus.add(t); campus.add(k);
+  }
+}
+
+function brainCore(){
+  core = new THREE.Group(); core.position.set(0,13,0);
+  var ico = new THREE.Mesh(new THREE.IcosahedronGeometry(3.1,1),
+    new THREE.MeshBasicMaterial({color:0x4fe8c8, wireframe:true, transparent:true, opacity:.62}));
+  core.add(ico); core.userData.ico = ico;
+  var inner = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5,0),
+    new THREE.MeshBasicMaterial({color:0xd9fff5, transparent:true, opacity:.55}));
+  core.add(inner);
+  coreRing = new THREE.Mesh(new THREE.RingGeometry(5.2,5.35,64),
+    new THREE.MeshBasicMaterial({color:0x4fe8c8, transparent:true, opacity:.4, side:THREE.DoubleSide}));
+  coreRing.rotation.x = Math.PI/2.3; core.add(coreRing);
+  var beam = new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,13,6),
+    new THREE.MeshBasicMaterial({color:0x4fe8c8, transparent:true, opacity:.18}));
+  beam.position.y = -6.5; core.add(beam);
+  campus.add(core);
+}
+
+function crowdSystem(){
+  for(var i=0;i<B.length;i++) for(var j=i+1;j<B.length;j++){
+    routes.push([
+      new THREE.Vector3(B[i].x,.6,B[i].z),
+      new THREE.Vector3((B[i].x+B[j].x)*.16,.6,(B[i].z+B[j].z)*.16),
+      new THREE.Vector3(B[j].x,.6,B[j].z)
+    ]);
+  }
+  var MAX = mobile?420:1100;
+  var pos = new Float32Array(MAX*3), col = new Float32Array(MAX*3);
+  for(var p=0;p<MAX;p++){
+    peopleData.push({r:Math.floor(Math.random()*routes.length), t:Math.random(),
+      s:0.0016+Math.random()*0.0032, o:(Math.random()-.5)*2.6});
+    col[p*3]=0.31; col[p*3+1]=0.91; col[p*3+2]=0.78;
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col,3));
+  people = new THREE.Points(geo, new THREE.PointsMaterial({size:mobile?1.5:1.15, vertexColors:true,
+    transparent:true, opacity:.9, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true}));
+  people.frustumCulled = false;
+  people.userData.max = MAX;
+  campus.add(people);
+}
+
+function pulseSystem(){
+  var MAX = 90, pos = new Float32Array(MAX*3);
+  for(var i=0;i<MAX;i++){ pulseData.push({on:false,t:0,from:null,s:.012}); pos[i*3+1]=-999; }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  pulses = new THREE.Points(geo, new THREE.PointsMaterial({color:0xd7fff4, size:2.6, transparent:true,
+    opacity:.95, blending:THREE.AdditiveBlending, depthWrite:false}));
+  pulses.frustumCulled = false;
+  campus.add(pulses);
+}
+
+function firePulse(bk){
+  if(!ready) return;
+  var b = null;
+  for(var n=0;n<B.length;n++) if(B[n].k===bk) b = B[n];
+  if(!b) b = B[Math.floor(Math.random()*B.length)];
+  for(var i=0;i<pulseData.length;i++){
+    if(!pulseData[i].on){
+      pulseData[i].on=true; pulseData[i].t=0;
+      pulseData[i].from = new THREE.Vector3(b.x, b.h*0.8, b.z);
+      pulseData[i].s = 0.010+Math.random()*0.008;
+      return;
+    }
+  }
+}
+
+function atmosphere(){
+  var N = mobile?280:700, pos = new Float32Array(N*3);
+  for(var i=0;i<N;i++){
+    pos[i*3]=(Math.random()-.5)*190; pos[i*3+1]=Math.random()*70; pos[i*3+2]=(Math.random()-.5)*190;
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  var dust = new THREE.Points(g, new THREE.PointsMaterial({color:0x8fd8e8, size:.5, transparent:true,
+    opacity:.3, blending:THREE.AdditiveBlending, depthWrite:false}));
+  scene.add(dust); scene.userData.dust = dust;
+}
+
+/* ---------------- scroll → camera ---------------- */
+var camPos = new THREE.Vector3(0,40,96), camLook = new THREE.Vector3(0,8,0);
+var mx=0, my=0, tmx=0, tmy=0, tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
+
+function shotAt(scrollY){
+  if(!sections.length) return {a:SHOTS.hero, b:SHOTS.hero, t:0};
+  var vh = window.innerHeight, i = 0;
+  for(var s=0;s<sections.length;s++){
+    if(sections[s] && scrollY + vh*0.5 >= sections[s].offsetTop) i = s;
+  }
+  var j = Math.min(i+1, sections.length-1);
+  var a = sections[i].offsetTop, b = sections[j].offsetTop, t = 0;
+  if(b > a) t = Math.min(1, Math.max(0, (scrollY + vh*0.5 - a)/(b-a)));
+  t = t*t*(3-2*t);
+  return {a:SHOTS[ORDER[i]], b:SHOTS[ORDER[j]], t:t};
+}
+
+function resolveLook(shot, out){
+  if(shot.focus && meshOf[shot.focus]){ meshOf[shot.focus].getWorldPosition(out); out.y += 3; }
+  else out.set(shot.look[0], shot.look[1], shot.look[2]);
+  return out;
+}
+
+/* ---------------- render loop ---------------- */
+function tick(){
+  requestAnimationFrame(tick);
+  if(!ready) return;
+  var dt = Math.min(clock.getDelta(), .05), el = clock.elapsedTime;
+
+  var s = shotAt(window.scrollY || window.pageYOffset || 0);
+  tmpA.set(s.a.p[0], s.a.p[1], s.a.p[2]);
+  tmpB.set(s.b.p[0], s.b.p[1], s.b.p[2]);
+  tmpA.lerp(tmpB, s.t);
+
+  var la = resolveLook(s.a, new THREE.Vector3());
+  var lb = resolveLook(s.b, new THREE.Vector3());
+  la.lerp(lb, s.t);
+
+  if(hovered){
+    var hp = new THREE.Vector3(); hovered.getWorldPosition(hp);
+    tmpA.lerp(hp.clone().add(new THREE.Vector3(0,14,26)), 0.16);
+    la.lerp(hp, 0.26);
+  }
+
+  mx += (tmx-mx)*0.05; my += (tmy-my)*0.05;
+  tmpA.x += mx*9; tmpA.y += -my*6;
+
+  camPos.lerp(tmpA, reduced?1:0.055);
+  camLook.lerp(la, reduced?1:0.07);
+  camera.position.copy(camPos);
+  camera.lookAt(camLook);
+
+  var targetSpin = (s.a.spin*(1-s.t) + s.b.spin*s.t) * (state.emergency?0.25:1);
+  spin += (targetSpin - spin)*0.05;
+  if(!reduced) campus.rotation.y += dt*0.055*spin;
+  if(scene.userData.dust) scene.userData.dust.rotation.y += dt*0.01;
+
+  core.userData.ico.rotation.y += dt*0.35;
+  core.userData.ico.rotation.x += dt*0.12;
+  coreRing.rotation.z += dt*0.5;
+  core.position.y = 13 + Math.sin(el*0.8)*0.5;
+
+  var pa = people.geometry.attributes.position.array;
+  var ca = people.geometry.attributes.color.array;
+  var active = Math.floor(people.userData.max * Math.min(1, 0.34 + state.crowd*0.66));
+  for(var i=0;i<people.userData.max;i++){
+    var d = peopleData[i];
+    if(i>=active){ pa[i*3+1] = -999; continue; }
+    d.t += d.s * (0.55 + state.crowd*0.75);
+    if(d.t>1){ d.t = 0; d.r = Math.floor(Math.random()*routes.length); }
+    var r = routes[d.r], t = d.t, it = 1-t;
+    pa[i*3]   = it*it*r[0].x + 2*it*t*r[1].x + t*t*r[2].x + Math.sin(t*22+i)*0.9 + d.o*0.4;
+    pa[i*3+1] = 0.7 + Math.sin(t*Math.PI)*0.7;
+    pa[i*3+2] = it*it*r[0].z + 2*it*t*r[1].z + t*t*r[2].z + Math.cos(t*22+i)*0.9 + d.o*0.4;
+    if(state.emergency){ ca[i*3]=1; ca[i*3+1]=0.34; ca[i*3+2]=0.36; }
+    else if(state.crowd>1.25){ ca[i*3]=0.98; ca[i*3+1]=0.74; ca[i*3+2]=0.32; }
+    else { ca[i*3]=0.31; ca[i*3+1]=0.91; ca[i*3+2]=0.78; }
+  }
+  people.geometry.attributes.position.needsUpdate = true;
+  people.geometry.attributes.color.needsUpdate = true;
+
+  var qa = pulses.geometry.attributes.position.array;
+  for(var j=0;j<pulseData.length;j++){
+    var q = pulseData[j];
+    if(!q.on){ qa[j*3+1] = -999; continue; }
+    q.t += q.s;
+    if(q.t>=1){ q.on=false; qa[j*3+1]=-999; continue; }
+    var e2 = q.t*q.t*(3-2*q.t);
+    qa[j*3]   = q.from.x + (0 - q.from.x)*e2;
+    qa[j*3+1] = q.from.y + (13 - q.from.y)*e2 + Math.sin(e2*Math.PI)*6;
+    qa[j*3+2] = q.from.z + (0 - q.from.z)*e2;
+  }
+  pulses.geometry.attributes.position.needsUpdate = true;
+
+  for(var n=0;n<B.length;n++){
+    var b = B[n], glow = glowOf[b.k], edge = edgeOf[b.k], mesh = meshOf[b.k];
+    var want = 0, col = 0x4fe8c8;
+    if(state.emergency && b.k==="blockB"){ want = .30 + Math.sin(el*6)*.12; col = 0xff4d5e; }
+    else if(hovered && hovered.userData.k===b.k){ want = .17; }
+    else if(state.crowd>1.3 && (b.k==="seminar"||b.k==="canteen")){ want = .10; col = 0xf5b44a; }
+    glow.material.color.setHex(col);
+    glow.material.opacity += (want - glow.material.opacity)*0.09;
+    var eop = hovered ? (hovered.userData.k===b.k ? .95 : .10) : .34;
+    if(state.emergency && b.k==="blockB") eop = .95;
+    edge.material.opacity += (eop - edge.material.opacity)*0.09;
+    edge.material.color.setHex(state.emergency && b.k==="blockB" ? 0xff4d5e : 0x4fe8c8);
+    var dim = hovered && hovered.userData.k!==b.k ? .18 : .55;
+    mesh.material.emissiveIntensity += (dim - mesh.material.emissiveIntensity)*0.09;
+  }
+
+  updateTags();
+  renderer.render(scene, camera);
+}
+
+function onResize(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  mobile = window.innerWidth < 900;
+}
+
+var inspect = document.getElementById("inspect");
+function onMove(e){
+  tmx = (e.clientX/window.innerWidth - .5)*2;
+  tmy = (e.clientY/window.innerHeight - .5)*2;
+  mouse.x = tmx; mouse.y = -tmy;
+  if(mobile || !ready) return;
+  raycaster.setFromCamera(mouse, camera);
+  var hit = raycaster.intersectObjects(pickables, false);
+  if(hit.length){
+    var m = hit[0].object;
+    if(hovered !== m){
+      hovered = m;
+      var b = m.userData;
+      document.getElementById("ins-name").textContent = b.f;
+      document.getElementById("ins-occ").textContent = b.occ + "%";
+      document.getElementById("ins-nrg").textContent = b.nrg + " kW";
+      document.getElementById("ins-rooms").textContent = b.rooms;
+      document.getElementById("ins-ai").textContent = b.ai;
+    }
+    inspect.classList.add("on");
+    inspect.style.left = Math.min(e.clientX+22, window.innerWidth-256) + "px";
+    inspect.style.top  = Math.max(16, Math.min(e.clientY-40, window.innerHeight-230)) + "px";
+    document.body.style.cursor = "crosshair";
+  } else {
+    hovered = null;
+    inspect.classList.remove("on");
+    document.body.style.cursor = "";
+  }
+}
+
+/* ---------------- floating tags ---------------- */
+var labelHost = document.getElementById("labels");
+var tags = B.map(function(b){
+  var el = document.createElement("div");
+  el.className = "tag";
+  el.innerHTML = "<b>"+b.n+"</b><i>"+b.occ+"% OCCUPANCY</i>";
+  labelHost.appendChild(el);
+  return {b:b, el:el, on:false};
+});
+
+function tagText(b){
+  if(b.k==="canteen") return state.crowd>1.2 ? "QUEUE CRITICAL" : "QUEUE HIGH";
+  if(b.k==="seminar") return Math.round(437*Math.min(1.14,state.crowd)) + " / 500";
+  return Math.min(99, Math.round(b.occ*(0.9+state.crowd*0.16))) + "% OCCUPANCY";
+}
+function cycleTags(){
+  var pick = [];
+  if(state.emergency) pick = [1];
+  else while(pick.length < (mobile?0:3)){
+    var k = Math.floor(Math.random()*tags.length);
+    if(pick.indexOf(k) < 0) pick.push(k);
+  }
+  tags.forEach(function(t,i){
+    t.on = pick.indexOf(i) >= 0;
+    if(t.on){
+      var crit = state.emergency && t.b.k === "blockB";
+      var warn = state.crowd > 1.2 && (t.b.k==="canteen"||t.b.k==="seminar");
+      t.el.className = "tag on" + (crit?" crit":warn?" warn":"");
+      t.el.innerHTML = "<b>"+t.b.n+"</b><i>"+(crit?"EVACUATING":tagText(t.b))+"</i>";
+    } else t.el.className = "tag";
+  });
+}
+
+var vTmp = new THREE.Vector3();
+function updateTags(){
+  for(var i=0;i<tags.length;i++){
+    var t = tags[i];
+    if(!t.on || !t.b.top) continue;
+    vTmp.copy(t.b.top); campus.localToWorld(vTmp); vTmp.project(camera);
+    if(vTmp.z > 1){ t.el.style.opacity = 0; continue; }
+    var x = (vTmp.x*.5+.5)*window.innerWidth, y = (-vTmp.y*.5+.5)*window.innerHeight;
+    var vis = x>60 && x<window.innerWidth-60 && y>60 && y<window.innerHeight-40;
+    t.el.style.opacity = vis ? 1 : 0;
+    t.el.style.left = x+"px"; t.el.style.top = y+"px";
+  }
+}
+
+/* ---------------- hero narrative ---------------- */
+var feedLines = ["f1","f2","f3","f4","f5"].map(function(id){ return document.getElementById(id); });
+var chainWords = document.querySelectorAll("#chain b");
+var SCEN = [
+  {src:"CCTV · BLOCK B",    det:"Crowd forming",       occ:82, pred:96, rec:"Open Seminar Hall 2",    key:"blockB"},
+  {src:"ORDERS · CANTEEN",  det:"240 pre-orders 12:30",occ:91, pred:99, rec:"Open counter 4",         key:"canteen"},
+  {src:"GATE · PARKING",    det:"Inflow spike +38%",   occ:63, pred:88, rec:"Divert to east lot",     key:"seminar"},
+  {src:"ENERGY · BLOCK A",  det:"AC in empty rooms",   occ:72, pred:84, rec:"Schedule shutdown",      key:"blockA"},
+  {src:"SHUTTLE · BUS 04",  det:"Vehicle at capacity", occ:83, pred:97, rec:"Dispatch 2 extra buses", key:"hostel"}
+];
+var si = 0;
+function runScenario(){
+  var s = SCEN[si % SCEN.length]; si++;
+  for(var i=0;i<7;i++) setTimeout(function(){ firePulse(s.key); }, i*130);
+  feedLines.forEach(function(l){ l.classList.remove("in"); });
+  chainWords.forEach(function(w){ w.classList.remove("hot"); });
+  var steps = [
+    function(){ feedLines[0].querySelector(".val").textContent = s.src; feedLines[0].classList.add("in"); chainWords[0].classList.add("hot"); },
+    function(){ feedLines[1].querySelector(".val").textContent = s.det; feedLines[1].classList.add("in"); chainWords[1].classList.add("hot"); },
+    function(){ document.getElementById("f3v").textContent = s.occ+"%"; feedLines[2].classList.add("in"); },
+    function(){ document.getElementById("f4v").textContent = s.pred+"%"; feedLines[3].classList.add("in"); chainWords[2].classList.add("hot"); },
+    function(){ document.getElementById("f5v").textContent = s.rec; feedLines[4].classList.add("in"); chainWords[4].classList.add("hot"); chainWords[5].classList.add("hot"); }
+  ];
+  steps.forEach(function(fn,i){ setTimeout(fn, 400+i*820); });
+}
+
+setInterval(function(){
+  var d = new Date();
+  document.getElementById("clock").textContent = "TWIN SYNC · " + d.toTimeString().slice(0,8) + " · LIVE";
+}, 1000);
+
+/* ---------------- reveals & counters ---------------- */
+var io = new IntersectionObserver(function(en){
+  en.forEach(function(x){ if(x.isIntersecting) x.target.classList.add("in"); });
+},{threshold:.15});
+document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+
+var countIO = new IntersectionObserver(function(en){
+  en.forEach(function(x){
+    if(!x.isIntersecting) return;
+    countIO.unobserve(x.target);
+    var target = +x.target.dataset.count, t0 = performance.now();
+    (function step(now){
+      var p = Math.min(1,(now-t0)/1900), e = 1-Math.pow(1-p,3);
+      x.target.textContent = Math.round(target*e).toLocaleString();
+      if(p<1) requestAnimationFrame(step);
+    })(t0);
+  });
+},{threshold:.5});
+document.querySelectorAll("[data-count]").forEach(function(el){ countIO.observe(el); });
+
+/* CCTV counter + detection boxes */
+var camIO = new IntersectionObserver(function(en){
+  if(!en[0].isIntersecting) return;
+  camIO.disconnect();
+  var el = document.getElementById("camcount"), t0 = performance.now();
+  (function step(now){
+    var p = Math.min(1,(now-t0)/2200);
+    el.textContent = Math.round(420*(1-Math.pow(1-p,3)));
+    if(p<1) requestAnimationFrame(step);
+  })(t0);
+  var cam = document.getElementById("cam");
+  for(var i=0;i<16;i++) (function(i){
+    setTimeout(function(){
+      var b = document.createElement("div");
+      b.className = "box";
+      b.style.left = (8+Math.random()*78)+"%";
+      b.style.top = (24+Math.random()*58)+"%";
+      b.style.width = (5+Math.random()*5)+"%";
+      b.style.height = (11+Math.random()*10)+"%";
+      cam.appendChild(b);
+    }, 300+i*110);
+  })(i);
+},{threshold:.4});
+camIO.observe(document.getElementById("cam"));
+
+/* predict timeline */
+document.querySelectorAll("#timeline [data-v]").forEach(function(row){
+  var vals = row.dataset.v.split(",").map(Number);
+  var host = row.querySelector(".steps");
+  vals.forEach(function(v){
+    var d = document.createElement("div");
+    d.className = "step" + (v>=90?" c":v>=75?" w":"");
+    d.innerHTML = "<b>0%</b><i class='fill'></i>";
+    host.appendChild(d);
+  });
+});
+var predIO = new IntersectionObserver(function(en){
+  if(!en[0].isIntersecting) return;
+  predIO.disconnect();
+  document.querySelectorAll("#timeline [data-v]").forEach(function(row,ri){
+    var vals = row.dataset.v.split(",").map(Number);
+    row.querySelectorAll(".step").forEach(function(st,ci){
+      setTimeout(function(){
+        st.querySelector(".fill").style.width = vals[ci]+"%";
+        var t0 = performance.now();
+        (function step(now){
+          var p = Math.min(1,(now-t0)/1200);
+          st.querySelector("b").textContent = Math.round(vals[ci]*(1-Math.pow(1-p,3)))+"%";
+          if(p<1) requestAnimationFrame(step);
+        })(t0);
+      }, ri*180 + ci*320);
+    });
+  });
+},{threshold:.35});
+predIO.observe(document.getElementById("timeline"));
+
+/* cascade stagger */
+var cascIO = new IntersectionObserver(function(en){
+  if(!en[0].isIntersecting) return;
+  cascIO.disconnect();
+  document.querySelectorAll("#cascade .cs").forEach(function(c,i){
+    setTimeout(function(){ c.classList.add("on"); }, 200+i*260);
+  });
+},{threshold:.3});
+cascIO.observe(document.getElementById("cascade"));
+
+/* ---------------- simulate ---------------- */
+var sim = document.getElementById("sim"), simN = document.getElementById("simN");
+var recHost = document.getElementById("recs");
+function recsFor(n){
+  var r = ["Pre-condition Seminar Hall HVAC"];
+  if(n>=500) r.push("Open Entrance B");
+  if(n>=700) r.push("Deploy 3 security staff to the north corridor");
+  if(n>=850) r.push("Add 2 shuttle services on the 16:10 loop");
+  if(n>=1000) r.push("Hold Sports Complex as overflow venue");
+  if(n>=1000) r.push("Raise cafeteria prep 40% for the post-event window");
+  if(n>=1250) r.push("Switch parking to the east lot and gate the ring road");
+  if(n>=1400) r.push("Escalate to campus operations — capacity exceeded");
+  return r;
+}
+function simUpdate(){
+  var n = +sim.value;
+  simN.textContent = n.toLocaleString();
+  state.crowd = 0.55 + (n-300)/1200*1.15;
+  var vals = {
+    seat: Math.min(100, Math.round(n/500*100)),
+    park: Math.min(100, Math.round(n/1400*100)),
+    bus:  Math.min(100, Math.round(n/1150*100)),
+    food: Math.min(100, Math.round(n/900*100)),
+    nrg:  Math.min(100, Math.round(38 + n/26))
+  };
+  Object.keys(vals).forEach(function(k){
+    var v = vals[k], bar = document.querySelector("[data-l='"+k+"']");
+    bar.style.width = v+"%";
+    bar.style.background = v>=95?"var(--red)":v>=78?"var(--amber)":"var(--accent)";
+    document.querySelector("[data-n='"+k+"']").textContent = v+"%";
+  });
+  recHost.innerHTML = "";
+  recsFor(n).forEach(function(txt,i){
+    var d = document.createElement("div");
+    d.className = "rec-i"; d.innerHTML = "<s></s><span>"+txt+"</span>";
+    recHost.appendChild(d);
+    setTimeout(function(){ d.classList.add("on"); }, 60+i*70);
+  });
+}
+sim.addEventListener("input", simUpdate);
+
+new IntersectionObserver(function(en){
+  if(en[0].isIntersecting) simUpdate();
+  else if(!state.emergency) state.crowd = 1;
+},{threshold:.1}).observe(document.getElementById("simulate"));
+
+/* ---------------- act ---------------- */
+function animateMetric(key, from, to, suffix, dur){
+  var el = document.querySelector("[data-m='"+key+"']"), t0 = performance.now();
+  (function step(now){
+    var p = Math.min(1,(now-t0)/dur), e = 1-Math.pow(1-p,3), v = from+(to-from)*e;
+    el.textContent = Math.round(v) + suffix;
+    el.style.color = v>90?"var(--red)":v>78?"var(--amber)":"var(--accent)";
+    if(p<1) requestAnimationFrame(step);
+  })(t0);
+}
+document.getElementById("apply").addEventListener("click", function(){
+  this.disabled = true; this.style.opacity = .5;
+  animateMetric("dens", 96, 71, "%", 1600);
+  animateMetric("q", 18, 7, " min", 1600);
+  document.getElementById("dens-d").textContent = "was 96%";
+  document.getElementById("q-d").textContent = "was 18 min";
+  setTimeout(function(){
+    var e = document.querySelector("[data-m='e']");
+    e.textContent = "Comfortable"; e.style.color = "var(--accent)";
+    document.getElementById("e-d").textContent = "was Low";
+    document.getElementById("done").classList.add("on");
+    state.crowd = 0.7;
+    for(var i=0;i<12;i++) setTimeout(function(){ firePulse("sports"); }, i*90);
+  }, 1700);
+});
+
+/* ---------------- canteen ---------------- */
+var WIN = [
+  {pre:96,  fc:210, q:"6 min",  adj:"+12%", c:[48,71,33], rec:"Light window. Counter 3 handles it alone; prep held at baseline."},
+  {pre:240, fc:420, q:"14 min", adj:"+38%", c:[62,94,41], rec:"Counter 3 is congesting. New pickups routed to Counter 2; kitchen prep raised for the 12:30 spike."},
+  {pre:158, fc:290, q:"9 min",  adj:"+21%", c:[55,78,37], rec:"Tail of the rush. One counter can close after 13:15 without raising the wait."}
+];
+document.querySelectorAll("#windows .win").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll("#windows .win").forEach(function(b){ b.classList.remove("sel"); });
+    btn.classList.add("sel");
+    var w = WIN[+btn.dataset.w];
+    document.getElementById("c1").textContent = w.pre;
+    document.getElementById("c2").textContent = w.fc;
+    document.getElementById("c3").textContent = w.q;
+    document.getElementById("c4").textContent = w.adj;
+    ["ct1","ct2","ct3"].forEach(function(id,i){
+      var el = document.getElementById(id), v = w.c[i];
+      el.querySelector("b").textContent = v+"%";
+      el.className = "ctr" + (v>=88?" hot":v<=50?" ok":"");
+    });
+    document.getElementById("canrec").textContent = w.rec;
+    firePulse("canteen");
+  });
+});
+
+/* ---------------- maintenance ---------------- */
+var ASSETS = [
+  {t:"Work order · AC-A204-01", s:"Cooling output down 31% against baseline for the same occupancy.",
+   h:"Two complaints in 14 days; last service 11 months ago.",
+   p:"Compressor failure likely within 9 days.", a:"Technician R. Kale · Block A · priority high"},
+  {t:"Work order · LIFT-B-02", s:"Door cycle time drifting 0.8s beyond spec since Tuesday.",
+   h:"One inspection overdue; three minor faults this term.",
+   p:"Door mechanism service recommended within 3 weeks.", a:"Technician S. Pawar · Block B · priority medium"},
+  {t:"Asset healthy · PUMP-UTIL-03", s:"Flow and current draw within baseline for this load.",
+   h:"Serviced 6 weeks ago; no open complaints.",
+   p:"No intervention needed. Next check at the scheduled interval.", a:"Unassigned · monitoring only"}
+];
+document.querySelectorAll("#assets .asset").forEach(function(row){
+  row.addEventListener("click", function(){
+    var a = ASSETS[+row.dataset.a];
+    document.getElementById("order-t").textContent = a.t;
+    document.getElementById("o1").textContent = a.s;
+    document.getElementById("o2").textContent = a.h;
+    document.getElementById("o3").textContent = a.p;
+    document.getElementById("o4").textContent = a.a;
+    document.getElementById("order").classList.add("on");
+    firePulse("blockA");
+  });
+});
+
+/* energy sparkline */
+(function(){
+  var host = document.getElementById("spark");
+  var vals = [22,26,24,29,31,28,34,62,78,74,81,76,80,30,26];
+  vals.forEach(function(v,i){
+    var b = document.createElement("i");
+    b.style.height = v+"%";
+    if(i>=7 && i<=12) b.className = "bad";
+    host.appendChild(b);
+  });
+})();
+document.getElementById("fixnrg").addEventListener("click", function(){
+  this.disabled = true; this.style.opacity = .5;
+  document.getElementById("nrgdone").classList.add("on");
+  document.querySelectorAll("#spark i.bad").forEach(function(b,i){
+    setTimeout(function(){ b.style.height = "28%"; b.className = ""; }, i*110);
+  });
+  firePulse("blockA");
+});
+
+/* ---------------- emergency ---------------- */
+var evacLines = [];
+function countTo(id, target){
+  var el = document.getElementById(id), t0 = performance.now();
+  (function step(now){
+    var p = Math.min(1,(now-t0)/1200);
+    el.textContent = Math.round(target*(1-Math.pow(1-p,3)));
+    if(p<1) requestAnimationFrame(step);
+  })(t0);
+}
+function drawEvac(){
+  if(!ready) return;
+  var src = B[1];
+  [{to:[-6,34],ok:true},{to:[-34,-2],ok:true},{to:[-2,2],ok:false}].forEach(function(x){
+    var curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(src.x,1.2,src.z),
+      new THREE.Vector3((src.x+x.to[0])/2+6,1.2,(src.z+x.to[1])/2),
+      new THREE.Vector3(x.to[0],1.2,x.to[1]));
+    var line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)),
+      new THREE.LineBasicMaterial({color:x.ok?0x4fe8c8:0xff4d5e, transparent:true, opacity:x.ok?.95:.8}));
+    campus.add(line); evacLines.push(line);
+  });
+}
+document.getElementById("drill").addEventListener("click", function(){
+  var btn = this;
+  if(state.emergency){
+    state.emergency = false;
+    document.getElementById("emergency").classList.remove("armed");
+    document.getElementById("evacpanel").style.opacity = .35;
+    var st = document.getElementById("evac-state");
+    st.textContent = "SYSTEM NOMINAL · NO ACTIVE INCIDENT"; st.style.color = "";
+    btn.textContent = "Run evacuation drill";
+    ["ev1","ev2","ev3"].forEach(function(id){ document.getElementById(id).textContent = "—"; });
+    evacLines.forEach(function(l){ campus.remove(l); }); evacLines = [];
+    cycleTags();
+    return;
+  }
+  state.emergency = true;
+  document.getElementById("emergency").classList.add("armed");
+  document.getElementById("evacpanel").style.opacity = 1;
+  var st2 = document.getElementById("evac-state");
+  st2.textContent = "INCIDENT DETECTED · BLOCK B · FLOOR 2 · SMOKE SENSOR 2F-07";
+  st2.style.color = "var(--red)";
+  btn.textContent = "End drill";
+  countTo("ev1",127); countTo("ev2",3);
+  document.getElementById("ev3").textContent = "4m 12s";
+  cycleTags(); drawEvac();
+});
+
+/* ---------------- roles ---------------- */
+var ROLES = [
+  {list:["AI campus companion","Timetable and next class","Congestion-aware navigation","Canteen order-ahead","Library seat availability","Shuttle times","Report a problem"],
+   q:"\u201CIs the library crowded?\u201D",
+   a:"78% overall, but the 2nd floor east wing has 38 free seats in the quiet zone, four minutes from your last class."},
+  {list:["Class and room status","Room and resource booking","Attendance context","Equipment state in the room","Report a fault","Event scheduling"],
+   q:"\u201CIs a projector working in A-204 for my 11 AM?\u201D",
+   a:"Projector is fine; the AC in A-204 is flagged at 81% failure risk. Room B-108 is free with equivalent equipment if you want to move."},
+  {list:["Live campus map","CCTV-derived alerts","Crowd density by zone","Incident log","Emergency routes","Response status"],
+   q:"\u201CWhere is the crowd building right now?\u201D",
+   a:"North corridor of the Seminar Hall, inflow +38%. Three staff recommended at Entrance B; the route overlay is already live for students."},
+  {list:["Asset health scores","Predictive failure alerts","Prioritised work orders","Location and probable cause","Maintenance history","Technician workload"],
+   q:"\u201CWhat needs attention this week?\u201D",
+   a:"AC-A204-01 first at 81% risk with two complaints behind it. Lift B-02 next. Pump 03 is healthy and can wait for its scheduled check."},
+  {list:["Digital twin and command centre","Cross-system AI copilot","Energy and utilities","Crowd and transport","Canteen demand","Simulation mode","Analytics and reports"],
+   q:"\u201CWhat happens if Block B closes tomorrow?\u201D",
+   a:"14 classes need relocation, 380 students shift walking routes, Block A energy rises 22%, and the 16:10 shuttle load moves to the east gate."}
+];
+function setRole(i){
+  var r = ROLES[i];
+  document.getElementById("rolelist").innerHTML = r.list.map(function(x){ return "<li>"+x+"</li>"; }).join("");
+  document.getElementById("roleq").textContent = r.q;
+  document.getElementById("rolea").textContent = r.a;
+}
+document.querySelectorAll("#tabs .tab").forEach(function(t){
+  t.addEventListener("click", function(){
+    document.querySelectorAll("#tabs .tab").forEach(function(x){ x.classList.remove("sel"); });
+    t.classList.add("sel");
+    setRole(+t.dataset.r);
+  });
+});
+setRole(0);
+
+/* ---------------- brain orbit ---------------- */
+(function(){
+  var host = document.getElementById("orbit"), svg = document.getElementById("orbitlines");
+  var IN = ["CCTV","TIMETABLE","ENERGY","TRANSPORT","CANTEEN","LIBRARY","MAINTENANCE","EVENTS"];
+  var OUT = ["PREDICTIONS","INSIGHTS","RECOMMENDATIONS","ACTIONS"];
+  var all = IN.map(function(n){ return {n:n,out:false}; }).concat(OUT.map(function(n){ return {n:n,out:true}; }));
+  all.forEach(function(item,i){
+    var a = (i/all.length)*Math.PI*2 - Math.PI/2, r = item.out?34:46;
+    var x = 50+Math.cos(a)*r, y = 50+Math.sin(a)*r;
+    var el = document.createElement("div");
+    el.className = "sat" + (item.out?" out":"");
+    el.textContent = item.n; el.style.left = x+"%"; el.style.top = y+"%";
+    host.appendChild(el);
+    var ln = document.createElementNS("http://www.w3.org/2000/svg","line");
+    ln.setAttribute("x1",x+"%"); ln.setAttribute("y1",y+"%");
+    ln.setAttribute("x2","50%"); ln.setAttribute("y2","50%");
+    ln.style.animationDelay = (i*.22)+"s";
+    if(item.out) ln.style.stroke = "rgba(79,232,200,.32)";
+    svg.appendChild(ln);
+  });
+})();
+
+/* admin copilot staged reveal */
+var adminIO = new IntersectionObserver(function(en){
+  if(!en[0].isIntersecting) return;
+  adminIO.disconnect();
+  document.querySelectorAll("#adminchat .ans").forEach(function(a,i){
+    setTimeout(function(){ a.classList.add("on"); }, 260+i*300);
+  });
+},{threshold:.4});
+adminIO.observe(document.getElementById("adminchat"));
+
+/* nav */
+document.querySelectorAll("[data-goto]").forEach(function(b){
+  b.addEventListener("click", function(){
+    var el = document.getElementById(b.dataset.goto);
+    window.scrollTo({top:el.offsetTop, behavior:"smooth"});
+  });
+});
+
+/* recede the twin where the DOM is the subject */
+var recedeIO = new IntersectionObserver(function(en){
+  en.forEach(function(x){
+    if(x.isIntersecting) stage.classList.add("recede");
+    else stage.classList.remove("recede");
+  });
+},{threshold:.35});
+["brain","admin","student","architecture","trust"].forEach(function(id){
+  recedeIO.observe(document.getElementById(id));
+});
+
+/* ---------------- bootstrap (last, so nothing is undefined) ---------------- */
+sections = ORDER.map(function(id){ return document.getElementById(id); });
+simUpdate();
+runScenario();
+setInterval(runScenario, 10500);
+setInterval(cycleTags, 4200);
+setTimeout(cycleTags, 900);
+
+if(hasGL && typeof THREE !== "undefined"){
+  try { init(); }
+  catch(err){
+    console.error("Twin failed to start:", err);
+    document.getElementById("nofx").style.display = "block";
+  }
+} else {
+  document.getElementById("nofx").style.display = "block";
+}
+
+})();
+</script>
+</body>
+</html>

@@ -110,9 +110,10 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function BrandBlock({ compact }: { compact?: boolean }) {
   return (
-    <div
+    <Link
+      href="/command"
       className={cx(
-        "flex items-center gap-2.5 px-4",
+        "flex items-center gap-2.5 px-4 transition-opacity hover:opacity-90",
         compact ? "" : "border-b border-[var(--border)] py-4",
       )}
     >
@@ -123,7 +124,7 @@ function BrandBlock({ compact }: { compact?: boolean }) {
         <div className="text-sm font-semibold tracking-wide">NEXUS Campus</div>
         <div className="text-[11px] text-[var(--text-faint)]">Sathaye College · digital twin</div>
       </div>
-    </div>
+    </Link>
   );
 }
 

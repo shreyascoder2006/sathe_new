@@ -11,11 +11,13 @@ import {
   TriangleAlert,
   TrendingUp,
   GraduationCap,
+  Globe,
 } from "lucide-react";
 
 export const NAV = [
+  { href: "/", label: "Landing Page", icon: Globe, group: "Campus" },
+  { href: "/command", label: "Command Center", icon: LayoutDashboard, group: "Campus" },
   { href: "/companion", label: "Campus Companion", icon: GraduationCap, group: "Campus" },
-  { href: "/", label: "Command Center", icon: LayoutDashboard, group: "Campus" },
   { href: "/energy", label: "EnergyMind", icon: Zap, group: "Intelligence" },
   { href: "/flow", label: "CampusFlow", icon: Users, group: "Intelligence" },
   { href: "/labs", label: "LabPulse", icon: Activity, group: "Intelligence" },

@@ -24,7 +24,7 @@ export default function BuildingPage({ params }: { params: Promise<{ id: string 
       eyebrow="Building Intelligence"
       subtitle={layout?.description}
       actions={
-        <Link href="/" className="text-xs text-[var(--cyan)] hover:underline">
+        <Link href="/command" className="text-xs text-[var(--cyan)] hover:underline">
           <ArrowLeft className="mr-1 inline size-3.5" />
           Command Center
         </Link>

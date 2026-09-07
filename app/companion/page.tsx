@@ -220,7 +220,7 @@ export default function CompanionPage() {
             <QuickAction icon={Utensils} label="Order lunch ahead" onClick={() => setTab("canteen")} />
             <QuickAction icon={Megaphone} label="Report an issue" onClick={() => setTab("report")} />
             <QuickAction icon={Search} label="Lost & found" href="/lost-found" />
-            <QuickAction icon={MapPin} label="Campus map" href="/" />
+            <QuickAction icon={MapPin} label="Campus map" href="/command" />
             <QuickAction icon={Clock} label="Service queues" href="/queues" />
           </div>
         </div>
