@@ -1,0 +1,335 @@
+// NEXUS Campus — data model
+// SQLite for zero-config local persistence. Swap `provider` to "postgresql"
+// (and DATABASE_URL) to move to Postgres later — the models are unchanged.
+// SQLite has no native enums; string fields document their allowed values.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String   @default("administrator") // administrator | facilities | security | lab_staff | student
+  team      String? // Facilities | Security | Lab Staff | Administration
+  createdAt DateTime @default(now())
+
+  assignedIncidents Incident[]        @relation("IncidentAssignee")
+  assignedTasks     MaintenanceTask[] @relation("TaskAssignee")
+  notifications     Notification[]
+}
+
+model Building {
+  id           String   @id
+  name         String
+  shortName    String
+  category     String // Academic | Laboratory | Library | Dining | Administration | Security | Sports | Support
+  description  String
+  floors       Int      @default(1)
+  approxNote   String   @default("Approximate digital twin location — not a surveyed measurement.")
+  healthScore  Int      @default(95)
+  status       String   @default("nominal") // nominal | attention | critical
+  energyStatus String   @default("nominal")
+  liftStatus   String   @default("operational") // operational | degraded | out_of_service | none
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  zones            Zone[]
+  services         Service[]
+  equipment        Equipment[]
+  energyReadings   EnergyReading[]
+  occupancyReadings OccupancyReading[]
+  incidents        Incident[]
+  accessRoutes     AccessRoute[]
+  timetableSlots   TimetableSlot[]
+}
+
+model Zone {
+  id         String   @id @default(cuid())
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  name       String
+  kind       String // classroom | lab | corridor | entrance | hall | office | open
+  capacity   Int      @default(60)
+
+  occupancyReadings OccupancyReading[]
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  buildingId  String
+  building    Building @relation(fields: [buildingId], references: [id])
+  name        String
+  category    String // Administrative | Dining | Academic | Support | Facilities
+  description String
+  isQueued    Boolean  @default(false)
+  queueLength Int      @default(0)
+  avgServiceMinutes Float @default(3)
+  status      String   @default("open") // open | busy | closed
+  updatedAt   DateTime @updatedAt
+
+  queueSamples QueueSample[]
+}
+
+model QueueSample {
+  id        String   @id @default(cuid())
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
+  at        DateTime @default(now())
+  queueLength Int
+  waitMinutes Float
+}
+
+model Equipment {
+  id           String   @id @default(cuid())
+  buildingId   String
+  building     Building @relation(fields: [buildingId], references: [id])
+  name         String
+  assetTag     String   @unique
+  category     String // Computing | Fabrication | Analytical | Electrical | HVAC | Optical
+  location     String
+  installedOn  DateTime
+  metric       String   @default("vibration_mm_s") // vibration_mm_s | temperature_c | current_a
+  sensorBaseline Float   @default(2)
+  sensorAmplitude Float  @default(0.3)
+  ageMonths    Int      @default(24)
+  healthScore  Int      @default(96)
+  failureRisk  Float    @default(0.05) // 0..1
+  status       String   @default("healthy") // healthy | monitor | at_risk | offline
+  lastServicedAt DateTime?
+  predictedServiceAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sensorReadings SensorReading[]
+  tasks          MaintenanceTask[]
+}
+
+model SensorReading {
+  id          String   @id @default(cuid())
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id])
+  at          DateTime
+  metric      String // vibration_mm_s | temperature_c | current_a | runtime_h
+  value       Float
+  baseline    Float
+  anomalous   Boolean  @default(false)
+
+  @@index([equipmentId, at])
+}
+
+model EnergyReading {
+  id         String   @id @default(cuid())
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  at         DateTime
+  kwh        Float
+  baseline   Float
+  anomalous  Boolean  @default(false)
+
+  @@index([buildingId, at])
+}
+
+model OccupancyReading {
+  id         String   @id @default(cuid())
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  zoneId     String?
+  zone       Zone?    @relation(fields: [zoneId], references: [id])
+  at         DateTime
+  count      Int
+  capacity   Int
+  baseline   Int
+  anomalous  Boolean  @default(false)
+
+  @@index([buildingId, at])
+}
+
+model Incident {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  type        String // energy | occupancy | equipment | security | accessibility | queue
+  severity    String // low | medium | high | critical
+  status      String   @default("open") // open | acknowledged | in_progress | resolved
+  source      String   @default("automation") // automation | manual | ai
+  buildingId  String?
+  building    Building? @relation(fields: [buildingId], references: [id])
+  summary     String
+  evidence    Json? // { metric, current, baseline, deviationPct, window }
+  aiExplanation Json? // { what, why, likelyCause, impact, recommendedAction, mode }
+  assigneeId  String?
+  assignee    User?     @relation("IncidentAssignee", fields: [assigneeId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  resolvedAt  DateTime?
+
+  tasks         MaintenanceTask[]
+  notifications Notification[]
+  execution     AutomationExecution?
+}
+
+model MaintenanceTask {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  team        String // Facilities | Security | Lab Staff | Administration
+  status      String   @default("assigned") // assigned | in_progress | done
+  priority    String   @default("medium") // low | medium | high
+  incidentId  String?
+  incident    Incident? @relation(fields: [incidentId], references: [id])
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id])
+  assigneeId  String?
+  assignee    User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  title      String
+  body       String
+  level      String   @default("info") // info | warning | critical | success
+  read       Boolean  @default(false)
+  incidentId String?
+  incident   Incident? @relation(fields: [incidentId], references: [id])
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  createdAt  DateTime  @default(now())
+}
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  trigger     String // energy_anomaly | crowd_congestion | equipment_health | lift_outage | security_event | queue_buildup
+  conditions  Json // { threshold, ... }
+  actions     Json // [{ type, params }]
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions AutomationExecution[]
+}
+
+model AutomationExecution {
+  id         String   @id @default(cuid())
+  ruleId     String
+  rule       AutomationRule @relation(fields: [ruleId], references: [id])
+  trigger    String
+  status     String // success | partial | failed
+  steps      Json // [{ action, status, detail, at }]
+  incidentId String?  @unique
+  incident   Incident? @relation(fields: [incidentId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model LostItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String // bottle | electronics | id_card | keys | clothing | bag | book | other
+  location    String
+  color       String?
+  reportedBy  String
+  imageUrl    String?
+  status      String   @default("open") // open | matched | claimed | closed
+  createdAt   DateTime @default(now())
+
+  matches LostItemMatch[]
+}
+
+model FoundItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  location    String
+  color       String?
+  foundBy     String
+  imageUrl    String?
+  status      String   @default("stored") // stored | matched | returned
+  createdAt   DateTime @default(now())
+
+  matches LostItemMatch[]
+}
+
+model LostItemMatch {
+  id          String   @id @default(cuid())
+  lostItemId  String
+  lostItem    LostItem  @relation(fields: [lostItemId], references: [id])
+  foundItemId String
+  foundItem   FoundItem @relation(fields: [foundItemId], references: [id])
+  confidence  Float
+  rationale   String
+  status      String   @default("suggested") // suggested | confirmed | rejected
+  createdAt   DateTime  @default(now())
+
+  @@unique([lostItemId, foundItemId])
+}
+
+model AccessRoute {
+  id          String   @id @default(cuid())
+  buildingId  String
+  building    Building @relation(fields: [buildingId], references: [id])
+  label       String
+  entrance    String
+  stepFree    Boolean  @default(true)
+  available   Boolean  @default(true)
+  note        String?
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  kind      String // simulation | automation | incident | maintenance | ai | user | system
+  message   String
+  meta      Json?
+}
+
+model CampusClock {
+  id     Int      @id @default(1)
+  now    DateTime
+}
+
+model TimetableSlot {
+  id         String   @id @default(cuid())
+  course     String
+  faculty    String
+  cohort     String // e.g. "SYBSc-A"
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  room       String
+  weekday    Int // 1=Mon .. 6=Sat
+  startHour  Int // 24h
+  endHour    Int
+}
+
+model MenuItem {
+  id       String  @id @default(cuid())
+  name     String
+  station  String // Counter 1 / Counter 2 / Beverages
+  price    Int
+  prepMins Int     @default(4)
+  available Boolean @default(true)
+}
+
+model CanteenOrder {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  items      Json // [{ menuItemId, name, qty }]
+  total      Int
+  pickupAt   DateTime
+  station    String
+  status     String   @default("received") // received | preparing | ready | collected
+  placedBy   String
+  createdAt  DateTime @default(now())
+}
